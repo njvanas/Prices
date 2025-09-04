@@ -188,6 +188,7 @@ function App() {
     // Get retailer IDs for this country
     </div>
     const { data: countryRetailers } = await supabase
+  )
 }
       .from('retailer_countries')
 
