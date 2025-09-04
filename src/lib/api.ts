@@ -1,185 +1,193 @@
-import { supabase } from './supabase'
-import type { Database } from './database.types'
+import { useState, useEffect } from 'react'
+import { Package } from 'lucide-react'
+import { Header } from './components/Header'
+import { ProductCard } from './components/ProductCard'
+import { ProductDetail } from './components/ProductDetail'
+import { CategoryFilter } from './components/CategoryFilter'
+import { LoadingSpinner } from './components/LoadingSpinner'
+import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
+import type { Database } from './lib/database.types'
 
-type Product = Database['public']['Tables']['products']['Row']
-type Price = Database['public']['Tables']['prices']['Row']
-type Retailer = Database['public']['Tables']['retailers']['Row']
 type Category = Database['public']['Tables']['categories']['Row']
+type Country = Database['public']['Tables']['countries']['Row']
 
-// Simplified country interface since the table doesn't exist yet
-interface Country {
-  code: string
-  name: string
-  currency_symbol: string
-}
+function App() {
+  const [products, setProducts] = useState<ProductWithPrices[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState('US')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-export interface ProductWithPrices extends Product {
-  category: Category | null
-  prices: (Price & { retailer: Retailer })[]
-  lowest_price?: number
-  highest_price?: number
-  currency_symbol?: string
-}
-
-export class PriceComparisonAPI {
-  // Get all supported countries
-  static async getCountries(): Promise<Country[]> {
-    // Return hardcoded countries until the countries table is created
-    return [
-      { code: 'US', name: 'United States', currency_symbol: '$' },
-      { code: 'UK', name: 'United Kingdom', currency_symbol: '£' },
-      { code: 'CA', name: 'Canada', currency_symbol: 'C$' },
-      { code: 'AU', name: 'Australia', currency_symbol: 'A$' },
-      { code: 'DE', name: 'Germany', currency_symbol: '€' },
-      { code: 'FR', name: 'France', currency_symbol: '€' },
-      { code: 'JP', name: 'Japan', currency_symbol: '¥' }
-    ]
-  }
-
-  // Get all categories
-  static async getCategories(): Promise<Category[]> {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name')
-
-    if (error) throw error
-    return data || []
-  }
-
-  // Search products with pricing information
-  static async searchProducts(query: string, countryCode: string = 'US', categoryId?: string): Promise<ProductWithPrices[]> {
-    let queryBuilder = supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        prices(
-          *,
-          retailer:retailers(*)
-        )
-      `)
-
-    if (query) {
-      queryBuilder = queryBuilder.or(`name.ilike.%${query}%,brand.ilike.%${query}%,description.ilike.%${query}%`)
-    }
-
-    if (categoryId) {
-      queryBuilder = queryBuilder.eq('category_id', categoryId)
-    }
-
-    const { data, error } = await queryBuilder
-      .order('name')
-      .limit(50)
-
-    if (error) throw error
-
-    // Get currency symbol for the selected country
-    const countries = await this.getCountries()
-    const countryData = countries.find(c => c.code === countryCode)
-
-    // Calculate price ranges for each product
-    return (data || []).map(product => {
-      const prices = product.prices.filter(p => p.retailer.is_active)
-      const priceValues = prices.map(p => p.price)
-      
-      return {
-        ...product,
-        prices,
-        lowest_price: priceValues.length > 0 ? Math.min(...priceValues) : undefined,
-        highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined,
-        currency_symbol: countryData?.currency_symbol || '$'
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true)
+        const [categoriesData, countriesData, productsData] = await Promise.all([
+          PriceComparisonAPI.getCategories(),
+          PriceComparisonAPI.getCountries(),
+          PriceComparisonAPI.getFeaturedProducts('US')
+        ])
+        setCategories(categoriesData)
+        setCountries(countriesData)
+        setProducts(productsData)
+        
+        // Set default country based on user's location (you could use IP geolocation)
+        // For now, defaulting to US
+        setSelectedCountry('US')
+      } catch (err) {
+        setError('Failed to load data. Please try again.')
+        console.error('Error loading initial data:', err)
+      } finally {
+        setLoading(false)
       }
-    })
-  }
+    }
 
-  // Get product details with full pricing information
-  static async getProductDetails(productId: string, countryCode: string = 'US'): Promise<ProductWithPrices | null> {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        prices(
-          *,
-          retailer:retailers(*)
-        )
-      `)
-      .eq('id', productId)
-      .single()
+    loadInitialData()
+  }, [])
 
-    if (error) throw error
-    if (!data) return null
-
-    // Get currency symbol for the selected country
-    const countries = await this.getCountries()
-    const countryData = countries.find(c => c.code === countryCode)
-    
-    const prices = data.prices.filter(p => p.retailer.is_active)
-    const priceValues = prices.map(p => p.price)
-
-    return {
-      ...data,
-      prices,
-      lowest_price: priceValues.length > 0 ? Math.min(...priceValues) : undefined,
-      highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined,
-      currency_symbol: countryData?.currency_symbol || '$'
+  // Handle country change
+  const handleCountryChange = async (countryCode: string) => {
+    try {
+      setLoading(true)
+      setSelectedCountry(countryCode)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, countryCode, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to load prices for selected country. Please try again.')
+      console.error('Country change error:', err)
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Get price history for a product
-  static async getPriceHistory(productId: string, retailerId?: string) {
-    let query = supabase
-      .from('price_history')
-      .select(`
-        *,
-        retailer:retailers(name, logo_url)
-      `)
-      .eq('product_id', productId)
-      .order('recorded_at', { ascending: false })
-
-    if (retailerId) {
-      query = query.eq('retailer_id', retailerId)
+  // Handle search
+  const handleSearch = async (query: string) => {
+    try {
+      setLoading(true)
+      setSearchQuery(query)
+      const results = await PriceComparisonAPI.searchProducts(query, selectedCountry, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Search failed. Please try again.')
+      console.error('Search error:', err)
+    } finally {
+      setLoading(false)
     }
-
-    const { data, error } = await query.limit(100)
-
-    if (error) throw error
-    return data || []
   }
 
-  // Get featured/trending products
-  static async getFeaturedProducts(countryCode: string = 'US'): Promise<ProductWithPrices[]> {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        prices(
-          *,
-          retailer:retailers(*)
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(12)
+  // Handle category filter
+  const handleCategoryChange = async (categoryId: string | null) => {
+    try {
+      setLoading(true)
+      setSelectedCategory(categoryId)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, selectedCountry, categoryId || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to filter by category. Please try again.')
+      console.error('Category filter error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-    if (error) throw error
-
-    // Get currency symbol for the selected country
-    const countries = await this.getCountries()
-    const countryData = countries.find(c => c.code === countryCode)
-    
-    return (data || []).map(product => {
-      const prices = product.prices.filter(p => p.retailer.is_active)
-      const priceValues = prices.map(p => p.price)
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
+      <Header 
+        onSearch={handleSearch} 
+        searchQuery={searchQuery}
+        countries={countries}
+        selectedCountry={selectedCountry}
+        onCountryChange={handleCountryChange}
+      />
       
-      return {
-        ...product,
-        prices,
-        lowest_price: priceValues.length > 0 ? Math.min(...priceValues) : undefined,
-        highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined,
-        currency_symbol: countryData?.currency_symbol || '$'
-      }
-    })
-  }
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
+        <div className="text-center mb-16">
+          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent mb-6 text-shadow">
+            Find Better Prices, Instantly
+          </h1>
+          <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
+            🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
+          </p>
+        </div>
+
+        {error && (
+          <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <CategoryFilter
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onCategoryChange={handleCategoryChange}
+            />
+          </div>
+
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            {loading ? (
+              <LoadingSpinner />
+            ) : (
+              <>
+                {/* Results Header */}
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-3xl font-semibold text-gray-100">
+                    {searchQuery ? `Search Results for "${searchQuery}"` : 'Featured Products'}
+                  </h2>
+                  <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
+                    {products.length} product{products.length !== 1 ? 's' : ''} found
+                  </span>
+                </div>
+
+                {/* Products Grid */}
+                {products.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    {products.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onClick={setSelectedProduct}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <div className="text-gray-500 mb-6">
+                      <Package className="w-20 h-20 mx-auto animate-pulse-slow" />
+                    </div>
+                    <h3 className="text-2xl font-medium text-gray-300 mb-3">No products found</h3>
+                    <p className="text-gray-400 text-lg">
+                      {searchQuery 
+                        ? 'Try adjusting your search terms or browse different categories'
+                        : 'No products available at the moment'
+                      }
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Product Detail Modal */}
+      {selectedProduct && (
+        <ProductDetail
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
+    </div>
+  )
 }
+
+export default App

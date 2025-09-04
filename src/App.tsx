@@ -13,6 +13,7 @@ type Country = Database['public']['Tables']['countries']['Row']
 
 function App() {
   const [products, setProducts] = useState<ProductWithPrices[]>([])
+  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [countries, setCountries] = useState<Country[]>([])
   const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
@@ -141,7 +142,7 @@ function App() {
                 {/* Results Header */}
                 <div className="flex items-center justify-between mb-8">
                   <h2 className="text-3xl font-semibold text-gray-100">
-                    {searchQuery ? `Search Results for "${searchQuery}"` : 'Featured Products'}
+                    {searchQuery ? `Search Results for "${searchQuery}"` : '🏆 Today\'s Best Deals'}
                   </h2>
                   <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
                     {products.length} product{products.length !== 1 ? 's' : ''} found
