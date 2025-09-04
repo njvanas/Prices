@@ -1,92 +1,193 @@
-import React from 'react'
-import { ExternalLink, TrendingDown, TrendingUp, Package } from 'lucide-react'
-import type { ProductWithPrices } from '../lib/api'
+import { useState, useEffect } from 'react'
+import { Package } from 'lucide-react'
+import { Header } from './components/Header'
+import { ProductCard } from './components/ProductCard'
+import { ProductDetail } from './components/ProductDetail'
+import { CategoryFilter } from './components/CategoryFilter'
+import { LoadingSpinner } from './components/LoadingSpinner'
+import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
+import type { Database } from './lib/database.types'
 
-interface ProductCardProps {
-  product: ProductWithPrices
-  onClick: (product: ProductWithPrices) => void
-}
+type Category = Database['public']['Tables']['categories']['Row']
+type Country = Database['public']['Tables']['countries']['Row']
 
-export function ProductCard({ product, onClick }: ProductCardProps) {
-  const formatPrice = (price: number, currencySymbol: string = '$') => {
-    return `${currencySymbol}${price.toLocaleString()}`
+function App() {
+  const [products, setProducts] = useState<ProductWithPrices[]>([])
+  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState('US')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true)
+        const [categoriesData, countriesData, productsData] = await Promise.all([
+          PriceComparisonAPI.getCategories(),
+          PriceComparisonAPI.getCountries(),
+          PriceComparisonAPI.getFeaturedProducts('US')
+        ])
+        setCategories(categoriesData)
+        setCountries(countriesData)
+        setProducts(productsData)
+        
+        // Set default country based on user's location (you could use IP geolocation)
+        // For now, defaulting to US
+        setSelectedCountry('US')
+      } catch (err) {
+        setError('Failed to load data. Please try again.')
+        console.error('Error loading initial data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadInitialData()
+  }, [])
+
+  // Handle country change
+  const handleCountryChange = async (countryCode: string) => {
+    try {
+      setLoading(true)
+      setSelectedCountry(countryCode)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, countryCode, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to load prices for selected country. Please try again.')
+      console.error('Country change error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const priceRange = product.lowest_price && product.highest_price && product.lowest_price !== product.highest_price
-  const savings = product.highest_price && product.lowest_price 
-    ? product.highest_price - product.lowest_price 
-    : 0
+  // Handle search
+  const handleSearch = async (query: string) => {
+    try {
+      setLoading(true)
+      setSearchQuery(query)
+      const results = await PriceComparisonAPI.searchProducts(query, selectedCountry, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Search failed. Please try again.')
+      console.error('Search error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle category filter
+  const handleCategoryChange = async (categoryId: string | null) => {
+    try {
+      setLoading(true)
+      setSelectedCategory(categoryId)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, selectedCountry, categoryId || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to filter by category. Please try again.')
+      console.error('Category filter error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div 
-      className="glass-card rounded-2xl hover:shadow-2xl hover:shadow-primary-500/10 transition-all duration-300 cursor-pointer group hover:scale-[1.02] active:scale-[0.98] animate-fade-in"
-      onClick={() => onClick(product)}
-    >
-      <div className="p-6 h-full flex flex-col">
-        {/* Product Image */}
-        <div className="aspect-square w-full mb-4 bg-dark-700 rounded-xl overflow-hidden relative">
-          <img
-            src={product.image_url || 'https://images.pexels.com/photos/163064/play-stone-network-networked-interactive-163064.jpeg?auto=compress&cs=tinysrgb&w=400'}
-            alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
+      <Header 
+        onSearch={handleSearch} 
+        searchQuery={searchQuery}
+        countries={countries}
+        selectedCountry={selectedCountry}
+        onCountryChange={handleCountryChange}
+      />
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
+        <div className="text-center mb-16">
+          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent mb-6 text-shadow">
+            Find Better Prices, Instantly
+          </h1>
+          <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
+            🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
+          </p>
         </div>
 
-        {/* Product Info */}
-        <div className="space-y-4 flex-1 flex flex-col">
-          <div>
-            <h3 className="font-semibold text-gray-100 text-lg line-clamp-2 group-hover:text-primary-400 transition-colors leading-tight">
-              {product.name}
-            </h3>
-            {product.brand && (
-              <p className="text-sm text-gray-400 mt-1 font-medium">{product.brand}</p>
-            )}
+        {error && (
+          <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <CategoryFilter
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onCategoryChange={handleCategoryChange}
+            />
           </div>
 
-          {/* Category */}
-          {product.category && (
-            <span className="inline-block px-3 py-1 bg-primary-500/20 text-primary-300 text-xs rounded-full font-medium w-fit">
-              {product.category.name}
-            </span>
-          )}
-
-          {/* Price Information */}
-          <div className="space-y-3 mt-auto">
-            {product.lowest_price ? (
-              <div>
-                <div className="flex items-end justify-between">
-                  <span className="text-3xl font-bold text-success-400">
-                    {formatPrice(product.lowest_price, product.currency_symbol)}
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            {loading ? (
+              <LoadingSpinner />
+            ) : (
+              <>
+                {/* Results Header */}
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-3xl font-semibold text-gray-100">
+                    {searchQuery ? `Search Results for "${searchQuery}"` : 'Featured Products'}
+                  </h2>
+                  <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
+                    {products.length} product{products.length !== 1 ? 's' : ''} found
                   </span>
-                  {priceRange && (
-                    <span className="text-sm text-gray-400 line-through">
-                      up to {formatPrice(product.highest_price!, product.currency_symbol)}
-                    </span>
-                  )}
                 </div>
-                
-                {savings > 0 && (
-                  <div className="flex items-center text-success-400 text-sm font-medium bg-success-500/10 px-3 py-1 rounded-lg">
-                    <TrendingDown className="w-4 h-4 mr-1" />
-                    Save {formatPrice(savings, product.currency_symbol)}
+
+                {/* Products Grid */}
+                {products.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    {products.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onClick={setSelectedProduct}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <div className="text-gray-500 mb-6">
+                      <Package className="w-20 h-20 mx-auto animate-pulse-slow" />
+                    </div>
+                    <h3 className="text-2xl font-medium text-gray-300 mb-3">No products found</h3>
+                    <p className="text-gray-400 text-lg">
+                      {searchQuery 
+                        ? 'Try adjusting your search terms or browse different categories'
+                        : 'Browse our categories to discover amazing deals'}
+                    </p>
                   </div>
                 )}
-                
-                <p className="text-sm text-gray-400 flex items-center">
-                  <Package className="w-4 h-4 mr-1" />
-                  {product.prices.length} store{product.prices.length !== 1 ? 's' : ''} • Click to compare
-                </p>
-              </div>
-            ) : (
-              <div className="text-gray-400">
-                <p className="text-lg font-medium">Price not available</p>
-                <p className="text-sm">Check back later</p>
-              </div>
+              </>
             )}
           </div>
         </div>
-      </div>
+      </main>
+
+      {/* Product Detail Modal */}
+      {selectedProduct && (
+        <ProductDetail
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
     </div>
   )
 }
+
+export default App

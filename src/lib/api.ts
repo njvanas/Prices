@@ -13,6 +13,7 @@ type Country = Database['public']['Tables']['countries']['Row']
 
 function App() {
   const [products, setProducts] = useState<ProductWithPrices[]>([])
+  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [countries, setCountries] = useState<Country[]>([])
   const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
@@ -30,7 +31,7 @@ function App() {
         const [categoriesData, countriesData, productsData] = await Promise.all([
           PriceComparisonAPI.getCategories(),
           PriceComparisonAPI.getCountries(),
-          PriceComparisonAPI.getFeaturedProducts('US')
+          PriceComparisonAPI.getBestDeals('US')
         ])
         setCategories(categoriesData)
         setCountries(countriesData)
