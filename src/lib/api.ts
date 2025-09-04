@@ -1,200 +1,207 @@
-import { useState, useEffect } from 'react'
-import { Package } from 'lucide-react'
-import { Header } from './components/Header'
-import { ProductCard } from './components/ProductCard'
-import { ProductDetail } from './components/ProductDetail'
-import { CategoryFilter } from './components/CategoryFilter'
-import { LoadingSpinner } from './components/LoadingSpinner'
-import { SchedulerStatus } from './components/SchedulerStatus'
-import { HotDealsSection } from './components/HotDealsSection'
-import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
-import type { Database } from './lib/database.types'
+import { supabase } from './supabase'
+import type { Database } from './database.types'
 
-type Category = Database['public']['Tables']['categories']['Row']
-type Country = Database['public']['Tables']['countries']['Row']
-
-function App() {
-  const [products, setProducts] = useState<ProductWithPrices[]>([])
-  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [countries, setCountries] = useState<Country[]>([])
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [selectedCountry, setSelectedCountry] = useState('US')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true)
-        const [categoriesData, countriesData, productsData] = await Promise.all([
-          PriceComparisonAPI.getCategories(),
-          PriceComparisonAPI.getCountries(),
-          PriceComparisonAPI.getFeaturedProducts('US')
-        ])
-        setCategories(categoriesData)
-        setCountries(countriesData)
-        setProducts(productsData)
-        
-        // Set default country based on user's location (you could use IP geolocation)
-        // For now, defaulting to US
-        setSelectedCountry('US')
-      } catch (err) {
-        setError('Failed to load data. Please try again.')
-        console.error('Error loading initial data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadInitialData()
-  }, [])
-
-  // Handle country change
-  const handleCountryChange = async (countryCode: string) => {
-    try {
-      setLoading(true)
-      setSelectedCountry(countryCode)
-      const results = await PriceComparisonAPI.searchProducts(searchQuery, countryCode, selectedCategory || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Failed to load prices for selected country. Please try again.')
-      console.error('Country change error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle search
-  const handleSearch = async (query: string) => {
-    try {
-      setLoading(true)
-      setSearchQuery(query)
-      const results = await PriceComparisonAPI.searchProducts(query, selectedCountry, selectedCategory || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Search failed. Please try again.')
-      console.error('Search error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle category filter
-  const handleCategoryChange = async (categoryId: string | null) => {
-    try {
-      setLoading(true)
-      setSelectedCategory(categoryId)
-      const results = await PriceComparisonAPI.searchProducts(searchQuery, selectedCountry, categoryId || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Failed to filter by category. Please try again.')
-      console.error('Category filter error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
-      <Header 
-        onSearch={handleSearch} 
-        searchQuery={searchQuery}
-        countries={countries}
-        selectedCountry={selectedCountry}
-        onCountryChange={handleCountryChange}
-      />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent mb-6 text-shadow">
-            Find Better Prices, Instantly
-          </h1>
-          <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
-            🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
-          </p>
-        </div>
-
-        {error && (
-          <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="mb-8">
-              <SchedulerStatus />
-            </div>
-            <CategoryFilter
-              categories={categories}
-              selectedCategory={selectedCategory}
-              onCategoryChange={handleCategoryChange}
-            />
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            {loading ? (
-              <LoadingSpinner />
-            ) : (
-              <>
-                {/* Results Header */}
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-3xl font-semibold text-gray-100">
-                    {searchQuery ? `Search Results for "${searchQuery}"` : '🔥 Today\'s Hottest Deals'}
-                  </h2>
-                  <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
-                    {products.length} product{products.length !== 1 ? 's' : ''} found
-                  </span>
-                </div>
-
-                {/* Products Grid */}
-                {products.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                    {products.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onClick={setSelectedProduct}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-20">
-                    <div className="text-gray-500 mb-6">
-                      <Package className="w-20 h-20 mx-auto animate-pulse-slow" />
-                    </div>
-                    <h3 className="text-2xl font-medium text-gray-300 mb-3">No products found</h3>
-                    <p className="text-gray-400 text-lg">
-                      {searchQuery 
-                        ? 'Try adjusting your search terms or browse different categories'
-                        : 'No products available at the moment'
-                      }
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </main>
-
-      {/* Product Detail Modal */}
-      {selectedProduct && (
-        <ProductDetail
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          selectedCountry={selectedCountry}
-        />
-      )}
-    </div>
-  )
+export type ProductWithPrices = Database['public']['Tables']['products']['Row'] & {
+  prices: (Database['public']['Tables']['prices']['Row'] & {
+    retailer: Database['public']['Tables']['retailers']['Row']
+  })[]
+  category?: Database['public']['Tables']['categories']['Row']
 }
 
-export default App
+export type PriceHistoryEntry = {
+  date: string
+  min_price: number
+  max_price: number
+  avg_price: number
+  retailer_count: number
+}
+
+export type SchedulerRun = Database['public']['Tables']['scheduler_runs']['Row']
+
+export const PriceComparisonAPI = {
+  // Get all categories
+  async getCategories() {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name')
+
+    if (error) throw error
+    return data || []
+  },
+
+  // Get all countries
+  async getCountries() {
+    const { data, error } = await supabase
+      .from('countries')
+      .select('*')
+      .eq('is_active', true)
+      .order('name')
+
+    if (error) throw error
+    return data || []
+  },
+
+  // Get featured products (top deals)
+  async getFeaturedProducts(countryCode: string = 'US'): Promise<ProductWithPrices[]> {
+    // Get retailer IDs for the country
+    const { data: countryRetailers } = await supabase
+      .from('retailer_countries')
+      .select('retailer_id')
+      .eq('country_code', countryCode)
+
+    const retailerIds = countryRetailers?.map(rc => rc.retailer_id) || []
+
+    if (retailerIds.length === 0) {
+      return []
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .select(`
+        *,
+        category:categories(*),
+        prices(
+          *,
+          retailer:retailers(*)
+        )
+      `)
+      .not('prices', 'is', null)
+      .limit(20)
+
+    if (error) throw error
+
+    // Filter products that have prices from retailers in the selected country
+    const filteredProducts = (data || []).filter(product => 
+      product.prices?.some(price => retailerIds.includes(price.retailer_id))
+    ).map(product => ({
+      ...product,
+      prices: product.prices?.filter(price => retailerIds.includes(price.retailer_id)) || []
+    }))
+
+    return filteredProducts as ProductWithPrices[]
+  },
+
+  // Search products
+  async searchProducts(query: string = '', countryCode: string = 'US', categoryId?: string): Promise<ProductWithPrices[]> {
+    // Get retailer IDs for the country
+    const { data: countryRetailers } = await supabase
+      .from('retailer_countries')
+      .select('retailer_id')
+      .eq('country_code', countryCode)
+
+    const retailerIds = countryRetailers?.map(rc => rc.retailer_id) || []
+
+    if (retailerIds.length === 0) {
+      return []
+    }
+
+    let queryBuilder = supabase
+      .from('products')
+      .select(`
+        *,
+        category:categories(*),
+        prices(
+          *,
+          retailer:retailers(*)
+        )
+      `)
+
+    if (query) {
+      queryBuilder = queryBuilder.or(`name.ilike.%${query}%,brand.ilike.%${query}%,description.ilike.%${query}%`)
+    }
+
+    if (categoryId) {
+      queryBuilder = queryBuilder.eq('category_id', categoryId)
+    }
+
+    const { data, error } = await queryBuilder
+      .not('prices', 'is', null)
+      .limit(50)
+
+    if (error) throw error
+
+    // Filter products that have prices from retailers in the selected country
+    const filteredProducts = (data || []).filter(product => 
+      product.prices?.some(price => retailerIds.includes(price.retailer_id))
+    ).map(product => ({
+      ...product,
+      prices: product.prices?.filter(price => retailerIds.includes(price.retailer_id)) || []
+    }))
+
+    return filteredProducts as ProductWithPrices[]
+  },
+
+  // Get price history for a product
+  async getPriceHistory(productId: string, countryCode: string = 'US', days: number = 30): Promise<PriceHistoryEntry[]> {
+    // Get retailer IDs for the country
+    const { data: countryRetailers } = await supabase
+      .from('retailer_countries')
+      .select('retailer_id')
+      .eq('country_code', countryCode)
+
+    const retailerIds = countryRetailers?.map(rc => rc.retailer_id) || []
+
+    if (retailerIds.length === 0) {
+      return []
+    }
+
+    const { data, error } = await supabase
+      .from('price_history')
+      .select('*')
+      .eq('product_id', productId)
+      .in('retailer_id', retailerIds)
+      .gte('recorded_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
+      .order('recorded_at', { ascending: true })
+
+    if (error) throw error
+
+    // Group by date and calculate min, max, avg prices
+    const groupedData: Record<string, { prices: number[], retailers: Set<string> }> = {}
+
+    data?.forEach(entry => {
+      const date = entry.recorded_at?.split('T')[0] || ''
+      if (!groupedData[date]) {
+        groupedData[date] = { prices: [], retailers: new Set() }
+      }
+      groupedData[date].prices.push(entry.price)
+      groupedData[date].retailers.add(entry.retailer_id)
+    })
+
+    return Object.entries(groupedData).map(([date, { prices, retailers }]) => ({
+      date,
+      min_price: Math.min(...prices),
+      max_price: Math.max(...prices),
+      avg_price: prices.reduce((sum, price) => sum + price, 0) / prices.length,
+      retailer_count: retailers.size
+    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  },
+
+  // Get scheduler status
+  async getSchedulerStatus(): Promise<SchedulerRun[]> {
+    const { data, error } = await supabase
+      .from('scheduler_runs')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(10)
+
+    if (error) throw error
+    return data || []
+  },
+
+  // Trigger manual scheduler run
+  async triggerScheduler(runType: string = 'manual'): Promise<void> {
+    const { error } = await supabase.functions.invoke('master-daily-scheduler', {
+      body: { runType, manual: true }
+    })
+
+    if (error) throw error
+  },
+
+  // Set price alert
+  async setPriceAlert(productId: string, targetPrice: number, email: string): Promise<void> {
+    // This would typically save to a price_alerts table
+    // For now, we'll just log it
+    console.log('Price alert set:', { productId, targetPrice, email })
+  }
+}

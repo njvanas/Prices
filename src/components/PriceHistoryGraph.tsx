@@ -1,200 +1,127 @@
-import { useState, useEffect } from 'react'
-import { Package } from 'lucide-react'
-import { Header } from './components/Header'
-import { ProductCard } from './components/ProductCard'
-import { ProductDetail } from './components/ProductDetail'
-import { CategoryFilter } from './components/CategoryFilter'
-import { LoadingSpinner } from './components/LoadingSpinner'
-import { SchedulerStatus } from './components/SchedulerStatus'
-import { HotDealsSection } from './components/HotDealsSection'
-import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
-import type { Database } from './lib/database.types'
+import React from 'react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 
-type Category = Database['public']['Tables']['categories']['Row']
-type Country = Database['public']['Tables']['countries']['Row']
+interface PriceHistoryEntry {
+  date: string
+  min_price: number
+  max_price: number
+  avg_price: number
+  retailer_count: number
+}
 
-function App() {
-  const [products, setProducts] = useState<ProductWithPrices[]>([])
-  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [countries, setCountries] = useState<Country[]>([])
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [selectedCountry, setSelectedCountry] = useState('US')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+interface PriceHistoryGraphProps {
+  data: PriceHistoryEntry[]
+}
 
-  // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true)
-        const [categoriesData, countriesData, productsData] = await Promise.all([
-          PriceComparisonAPI.getCategories(),
-          PriceComparisonAPI.getCountries(),
-          PriceComparisonAPI.getFeaturedProducts('US')
-        ])
-        setCategories(categoriesData)
-        setCountries(countriesData)
-        setProducts(productsData)
-        
-        // Set default country based on user's location (you could use IP geolocation)
-        // For now, defaulting to US
-        setSelectedCountry('US')
-      } catch (err) {
-        setError('Failed to load data. Please try again.')
-        console.error('Error loading initial data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadInitialData()
-  }, [])
-
-  // Handle country change
-  const handleCountryChange = async (countryCode: string) => {
-    try {
-      setLoading(true)
-      setSelectedCountry(countryCode)
-      const results = await PriceComparisonAPI.searchProducts(searchQuery, countryCode, selectedCategory || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Failed to load prices for selected country. Please try again.')
-      console.error('Country change error:', err)
-    } finally {
-      setLoading(false)
-    }
+export function PriceHistoryGraph({ data }: PriceHistoryGraphProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-64 flex items-center justify-center text-gray-400">
+        <p>No price history data available</p>
+      </div>
+    )
   }
 
-  // Handle search
-  const handleSearch = async (query: string) => {
-    try {
-      setLoading(true)
-      setSearchQuery(query)
-      const results = await PriceComparisonAPI.searchProducts(query, selectedCountry, selectedCategory || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Search failed. Please try again.')
-      console.error('Search error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Format data for the chart
+  const chartData = data.map(entry => ({
+    date: new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    minPrice: entry.min_price,
+    maxPrice: entry.max_price,
+    avgPrice: entry.avg_price,
+    retailers: entry.retailer_count
+  }))
 
-  // Handle category filter
-  const handleCategoryChange = async (categoryId: string | null) => {
-    try {
-      setLoading(true)
-      setSelectedCategory(categoryId)
-      const results = await PriceComparisonAPI.searchProducts(searchQuery, selectedCountry, categoryId || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Failed to filter by category. Please try again.')
-      console.error('Category filter error:', err)
-    } finally {
-      setLoading(false)
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-dark-800 border border-dark-600 rounded-lg p-3 shadow-lg">
+          <p className="text-gray-200 font-medium">{label}</p>
+          <div className="space-y-1 mt-2">
+            <p className="text-success-400">
+              Min: ${payload[0]?.value?.toFixed(2)}
+            </p>
+            <p className="text-primary-400">
+              Avg: ${payload[1]?.value?.toFixed(2)}
+            </p>
+            <p className="text-error-400">
+              Max: ${payload[2]?.value?.toFixed(2)}
+            </p>
+            <p className="text-gray-400 text-sm">
+              {payload[0]?.payload?.retailers} retailers
+            </p>
+          </div>
+        </div>
+      )
     }
+    return null
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
-      <Header 
-        onSearch={handleSearch} 
-        searchQuery={searchQuery}
-        countries={countries}
-        selectedCountry={selectedCountry}
-        onCountryChange={handleCountryChange}
-      />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent mb-6 text-shadow">
-            Find Better Prices, Instantly
-          </h1>
-          <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
-            🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
-          </p>
-        </div>
-
-        {error && (
-          <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="mb-8">
-              <SchedulerStatus />
-            </div>
-            <CategoryFilter
-              categories={categories}
-              selectedCategory={selectedCategory}
-              onCategoryChange={handleCategoryChange}
-            />
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            {loading ? (
-              <LoadingSpinner />
-            ) : (
-              <>
-                {/* Results Header */}
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-3xl font-semibold text-gray-100">
-                    {searchQuery ? `Search Results for "${searchQuery}"` : '🔥 Today\'s Hottest Deals'}
-                  </h2>
-                  <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
-                    {products.length} product{products.length !== 1 ? 's' : ''} found
-                  </span>
-                </div>
-
-                {/* Products Grid */}
-                {products.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                    {products.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onClick={setSelectedProduct}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-20">
-                    <div className="text-gray-500 mb-6">
-                      <Package className="w-20 h-20 mx-auto animate-pulse-slow" />
-                    </div>
-                    <h3 className="text-2xl font-medium text-gray-300 mb-3">No products found</h3>
-                    <p className="text-gray-400 text-lg">
-                      {searchQuery 
-                        ? 'Try adjusting your search terms or browse different categories'
-                        : 'No products available at the moment'
-                      }
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </main>
-
-      {/* Product Detail Modal */}
-      {selectedProduct && (
-        <ProductDetail
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          selectedCountry={selectedCountry}
-        />
-      )}
+    <div className="h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <defs>
+            <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis 
+            dataKey="date" 
+            stroke="#9ca3af"
+            fontSize={12}
+          />
+          <YAxis 
+            stroke="#9ca3af"
+            fontSize={12}
+            tickFormatter={(value) => `$${value}`}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          
+          {/* Price range area */}
+          <Area
+            type="monotone"
+            dataKey="maxPrice"
+            stroke="#ef4444"
+            fill="url(#priceGradient)"
+            fillOpacity={0.1}
+          />
+          <Area
+            type="monotone"
+            dataKey="minPrice"
+            stroke="#10b981"
+            fill="#10b981"
+            fillOpacity={0.1}
+          />
+          
+          {/* Price lines */}
+          <Line
+            type="monotone"
+            dataKey="minPrice"
+            stroke="#10b981"
+            strokeWidth={2}
+            dot={{ fill: '#10b981', strokeWidth: 2, r: 3 }}
+            activeDot={{ r: 5, stroke: '#10b981', strokeWidth: 2 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="avgPrice"
+            stroke="#3b82f6"
+            strokeWidth={3}
+            dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+            activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="maxPrice"
+            stroke="#ef4444"
+            strokeWidth={2}
+            dot={{ fill: '#ef4444', strokeWidth: 2, r: 3 }}
+            activeDot={{ r: 5, stroke: '#ef4444', strokeWidth: 2 }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   )
 }
-
-export default App
