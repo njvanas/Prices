@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Play, Clock, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Database, TrendingUp } from 'lucide-react'
 import { PriceComparisonAPI } from '../lib/api'
 
 interface SchedulerRun {
@@ -14,12 +14,18 @@ interface SchedulerRun {
   error_details?: string
   summary?: {
     total_tasks: number
+    critical_tasks_success: number
+    critical_tasks_total: number
     success_rate: number
+    critical_success_rate: number
+    overall_success: boolean
     task_results: Array<{
       task: string
       status: string
+      critical: boolean
       duration_seconds?: number
       error?: string
+      result?: any
     }>
   }
 }
@@ -27,7 +33,6 @@ interface SchedulerRun {
 export function SchedulerStatus() {
   const [schedulerRuns, setSchedulerRuns] = useState<SchedulerRun[]>([])
   const [loading, setLoading] = useState(true)
-  const [triggering, setTriggering] = useState(false)
 
   const loadSchedulerStatus = async () => {
     try {
@@ -40,24 +45,9 @@ export function SchedulerStatus() {
     }
   }
 
-  const triggerUpdate = async () => {
-    setTriggering(true)
-    try {
-      const result = await PriceComparisonAPI.triggerDataUpdate()
-      if (result.success) {
-        // Refresh status after triggering
-        setTimeout(loadSchedulerStatus, 2000)
-      }
-    } catch (error) {
-      console.error('Failed to trigger update:', error)
-    } finally {
-      setTriggering(false)
-    }
-  }
-
   useEffect(() => {
     loadSchedulerStatus()
-    // Refresh every 30 seconds
+    // Refresh every 30 seconds to show real-time updates
     const interval = setInterval(loadSchedulerStatus, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -65,7 +55,7 @@ export function SchedulerStatus() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'running':
-        return <Clock className="w-4 h-4 text-warning-400 animate-pulse" />
+        return <RefreshCw className="w-4 h-4 text-warning-400 animate-spin" />
       case 'completed':
         return <CheckCircle className="w-4 h-4 text-success-400" />
       case 'completed_with_errors':
@@ -107,31 +97,21 @@ export function SchedulerStatus() {
   }
 
   const latestRun = schedulerRuns[0]
+  const isRunning = latestRun?.status === 'running'
 
   return (
     <div className="bg-dark-800/50 backdrop-blur-sm rounded-xl p-6 border border-dark-600/50">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
-          <RefreshCw className="w-5 h-5 text-primary-400" />
-          Data Update Status
+          <Database className="w-5 h-5 text-primary-400" />
+          System Status
         </h3>
-        <button
-          onClick={triggerUpdate}
-          disabled={triggering || latestRun?.status === 'running'}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-medium"
-        >
-          {triggering ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Triggering...
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4" />
-              Update Now
-            </>
-          )}
-        </button>
+        {isRunning && (
+          <div className="flex items-center gap-2 text-warning-400 text-sm">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>Auto-updating...</span>
+          </div>
+        )}
       </div>
 
       {latestRun ? (
@@ -153,15 +133,15 @@ export function SchedulerStatus() {
             {latestRun.summary && (
               <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
                 <div>
-                  <span className="opacity-75">Tasks:</span>
+                  <span className="opacity-75">Critical Tasks:</span>
                   <span className="ml-2 font-medium">
-                    {latestRun.tasks_completed || 0}/{latestRun.summary.total_tasks}
+                    {latestRun.summary.critical_tasks_success || 0}/{latestRun.summary.critical_tasks_total || 0}
                   </span>
                 </div>
                 <div>
                   <span className="opacity-75">Success Rate:</span>
                   <span className="ml-2 font-medium">
-                    {latestRun.summary.success_rate || 0}%
+                    {latestRun.summary.critical_success_rate || 0}%
                   </span>
                 </div>
                 {latestRun.execution_time_minutes && (
@@ -176,36 +156,56 @@ export function SchedulerStatus() {
             )}
           </div>
 
-          {/* Task Breakdown */}
+          {/* Data Insights */}
           {latestRun.summary?.task_results && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-300">Task Details:</h4>
-              {latestRun.summary.task_results.map((task, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-dark-700/30 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    {task.status === 'completed' ? (
-                      <CheckCircle className="w-4 h-4 text-success-400" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-error-400" />
-                    )}
-                    <span className="text-sm text-gray-200">{task.task}</span>
-                  </div>
-                  {task.duration_seconds && (
-                    <span className="text-xs text-gray-400">
-                      {task.duration_seconds}s
-                    </span>
-                  )}
-                </div>
-              ))}
+            <div className="bg-dark-700/30 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Latest Update Results
+              </h4>
+              <div className="grid grid-cols-1 gap-2">
+                {latestRun.summary.task_results
+                  .filter(task => task.result && task.status === 'completed')
+                  .map((task, index) => (
+                    <div key={index} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-300">{task.task}</span>
+                      <div className="flex items-center gap-2">
+                        {task.result?.summary && (
+                          <span className="text-success-400">
+                            {task.result.summary.new_products_added || task.result.summary.total_deals_updated || 'Updated'}
+                          </span>
+                        )}
+                        <CheckCircle className="w-3 h-3 text-success-400" />
+                      </div>
+                    </div>
+                  ))}
+              </div>
             </div>
           )}
+
+          {/* System Health Indicator */}
+          <div className="bg-dark-700/30 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-300">Data Freshness</span>
+              <div className="flex items-center gap-2">
+                {latestRun.completed_at && (
+                  <>
+                    <div className="w-2 h-2 bg-success-400 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-success-400">
+                      Updated {Math.round((Date.now() - new Date(latestRun.completed_at).getTime()) / (1000 * 60 * 60))}h ago
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* Recent Runs History */}
           {schedulerRuns.length > 1 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-300">Recent Runs:</h4>
+              <h4 className="text-sm font-medium text-gray-300">Recent Updates:</h4>
               <div className="space-y-1">
-                {schedulerRuns.slice(1, 6).map((run) => (
+                {schedulerRuns.slice(1, 4).map((run) => (
                   <div key={run.id} className="flex items-center justify-between p-2 bg-dark-700/20 rounded">
                     <div className="flex items-center gap-2">
                       {getStatusIcon(run.status)}
@@ -214,7 +214,7 @@ export function SchedulerStatus() {
                       </span>
                     </div>
                     <div className="text-xs text-gray-400">
-                      {run.tasks_completed || 0}/{run.summary?.total_tasks || 0} tasks
+                      {run.summary?.critical_tasks_success || 0}/{run.summary?.critical_tasks_total || 0} critical
                     </div>
                   </div>
                 ))}
@@ -224,9 +224,9 @@ export function SchedulerStatus() {
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
-          <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>No scheduler runs found</p>
-          <p className="text-sm mt-1">Click "Update Now" to start data collection</p>
+          <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p>System initializing...</p>
+          <p className="text-sm mt-1">Automated data collection will begin shortly</p>
         </div>
       )}
     </div>

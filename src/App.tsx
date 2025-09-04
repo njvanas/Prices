@@ -154,13 +154,6 @@ function App() {
                   </span>
                 </div>
 
-                {/* Scheduler Status - Show when no search query */}
-                {!searchQuery && (
-                  <div className="mb-12">
-                    <SchedulerStatus onTriggerUpdate={() => window.location.reload()} />
-                  </div>
-                )}
-
                 {/* Products Grid */}
                 {products.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">

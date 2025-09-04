@@ -1,206 +1,200 @@
-import React from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { TrendingDown, TrendingUp, Minus, Calendar } from 'lucide-react'
-import type { Database } from '../lib/database.types'
+import { useState, useEffect } from 'react'
+import { Package } from 'lucide-react'
+import { Header } from './components/Header'
+import { ProductCard } from './components/ProductCard'
+import { ProductDetail } from './components/ProductDetail'
+import { CategoryFilter } from './components/CategoryFilter'
+import { LoadingSpinner } from './components/LoadingSpinner'
+import { SchedulerStatus } from './components/SchedulerStatus'
+import { HotDealsSection } from './components/HotDealsSection'
+import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
+import type { Database } from './lib/database.types'
 
-type PriceHistory = Database['public']['Tables']['price_history']['Row'] & {
-  retailer: Database['public']['Tables']['retailers']['Row']
-}
+type Category = Database['public']['Tables']['categories']['Row']
+type Country = Database['public']['Tables']['countries']['Row']
 
-interface PriceHistoryGraphProps {
-  priceHistory: PriceHistory[]
-  productName: string
-  currencySymbol: string
-}
+function App() {
+  const [products, setProducts] = useState<ProductWithPrices[]>([])
+  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState('US')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-export function PriceHistoryGraph({ priceHistory, productName, currencySymbol }: PriceHistoryGraphProps) {
-  if (!priceHistory || priceHistory.length === 0) {
-    return (
-      <div className="bg-dark-700/30 border border-dark-600 rounded-xl p-8 text-center">
-        <Calendar className="w-12 h-12 mx-auto text-gray-500 mb-4" />
-        <h3 className="text-lg font-medium text-gray-300 mb-2">No Price History Available</h3>
-        <p className="text-gray-400 text-sm">Price tracking data will appear here as we collect more information over time.</p>
-      </div>
-    )
-  }
-
-  // Group price history by date and calculate daily averages
-  const groupedData = priceHistory.reduce((acc, entry) => {
-    const date = new Date(entry.recorded_at!).toLocaleDateString()
-    if (!acc[date]) {
-      acc[date] = {
-        date,
-        prices: [],
-        retailers: new Set()
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true)
+        const [categoriesData, countriesData, productsData] = await Promise.all([
+          PriceComparisonAPI.getCategories(),
+          PriceComparisonAPI.getCountries(),
+          PriceComparisonAPI.getFeaturedProducts('US')
+        ])
+        setCategories(categoriesData)
+        setCountries(countriesData)
+        setProducts(productsData)
+        
+        // Set default country based on user's location (you could use IP geolocation)
+        // For now, defaulting to US
+        setSelectedCountry('US')
+      } catch (err) {
+        setError('Failed to load data. Please try again.')
+        console.error('Error loading initial data:', err)
+      } finally {
+        setLoading(false)
       }
     }
-    acc[date].prices.push(entry.price)
-    acc[date].retailers.add(entry.retailer.name)
-    return acc
-  }, {} as Record<string, { date: string; prices: number[]; retailers: Set<string> }>)
 
-  // Convert to chart data with min, max, and average prices per day
-  const chartData = Object.values(groupedData)
-    .map(day => {
-      const prices = day.prices.map(p => Number(p))
-      const minPrice = Math.min(...prices)
-      const maxPrice = Math.max(...prices)
-      const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length
-      
-      return {
-        date: day.date,
-        minPrice: Number(minPrice.toFixed(2)),
-        maxPrice: Number(maxPrice.toFixed(2)),
-        avgPrice: Number(avgPrice.toFixed(2)),
-        retailers: day.retailers.size,
-        fullDate: new Date(day.date)
-      }
-    })
-    .sort((a, b) => a.fullDate.getTime() - b.fullDate.getTime())
+    loadInitialData()
+  }, [])
 
-  // Calculate price trend
-  const firstPrice = chartData[0]?.avgPrice || 0
-  const lastPrice = chartData[chartData.length - 1]?.avgPrice || 0
-  const priceChange = lastPrice - firstPrice
-  const priceChangePercent = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0
-
-  const getTrendIcon = () => {
-    if (priceChangePercent > 2) return <TrendingUp className="w-5 h-5 text-error-400" />
-    if (priceChangePercent < -2) return <TrendingDown className="w-5 h-5 text-success-400" />
-    return <Minus className="w-5 h-5 text-gray-400" />
-  }
-
-  const getTrendColor = () => {
-    if (priceChangePercent > 2) return 'text-error-400'
-    if (priceChangePercent < -2) return 'text-success-400'
-    return 'text-gray-400'
-  }
-
-  const formatPrice = (value: number) => `${currencySymbol}${value.toFixed(2)}`
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload
-      return (
-        <div className="bg-dark-800 border border-dark-600 rounded-lg p-4 shadow-xl">
-          <p className="text-gray-200 font-medium mb-2">{label}</p>
-          <div className="space-y-1 text-sm">
-            <p className="text-success-400">
-              Lowest: <span className="font-semibold">{formatPrice(data.minPrice)}</span>
-            </p>
-            <p className="text-primary-400">
-              Average: <span className="font-semibold">{formatPrice(data.avgPrice)}</span>
-            </p>
-            <p className="text-error-400">
-              Highest: <span className="font-semibold">{formatPrice(data.maxPrice)}</span>
-            </p>
-            <p className="text-gray-400">
-              {data.retailers} retailer{data.retailers !== 1 ? 's' : ''}
-            </p>
-          </div>
-        </div>
-      )
+  // Handle country change
+  const handleCountryChange = async (countryCode: string) => {
+    try {
+      setLoading(true)
+      setSelectedCountry(countryCode)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, countryCode, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to load prices for selected country. Please try again.')
+      console.error('Country change error:', err)
+    } finally {
+      setLoading(false)
     }
-    return null
+  }
+
+  // Handle search
+  const handleSearch = async (query: string) => {
+    try {
+      setLoading(true)
+      setSearchQuery(query)
+      const results = await PriceComparisonAPI.searchProducts(query, selectedCountry, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Search failed. Please try again.')
+      console.error('Search error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle category filter
+  const handleCategoryChange = async (categoryId: string | null) => {
+    try {
+      setLoading(true)
+      setSelectedCategory(categoryId)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, selectedCountry, categoryId || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to filter by category. Please try again.')
+      console.error('Category filter error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="bg-dark-700/30 border border-dark-600 rounded-xl p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-xl font-semibold text-gray-100 mb-2">📈 Price History</h3>
-          <p className="text-gray-400 text-sm">Track how prices have changed over time</p>
+    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
+      <Header 
+        onSearch={handleSearch} 
+        searchQuery={searchQuery}
+        countries={countries}
+        selectedCountry={selectedCountry}
+        onCountryChange={handleCountryChange}
+      />
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
+        <div className="text-center mb-16">
+          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent mb-6 text-shadow">
+            Find Better Prices, Instantly
+          </h1>
+          <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
+            🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
+          </p>
         </div>
-        <div className="text-right">
-          <div className="flex items-center space-x-2 mb-1">
-            {getTrendIcon()}
-            <span className={`font-semibold ${getTrendColor()}`}>
-              {priceChangePercent > 0 ? '+' : ''}{priceChangePercent.toFixed(1)}%
-            </span>
+
+        {error && (
+          <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
+            {error}
           </div>
-          <p className="text-xs text-gray-400">
-            {chartData.length} day{chartData.length !== 1 ? 's' : ''} tracked
-          </p>
-        </div>
-      </div>
+        )}
 
-      {/* Price Trend Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-dark-800/50 rounded-lg p-4 text-center">
-          <p className="text-gray-400 text-xs mb-1">First Recorded</p>
-          <p className="text-lg font-bold text-gray-200">{formatPrice(firstPrice)}</p>
-        </div>
-        <div className="bg-dark-800/50 rounded-lg p-4 text-center">
-          <p className="text-gray-400 text-xs mb-1">Current Average</p>
-          <p className="text-lg font-bold text-gray-200">{formatPrice(lastPrice)}</p>
-        </div>
-        <div className="bg-dark-800/50 rounded-lg p-4 text-center">
-          <p className="text-gray-400 text-xs mb-1">Total Change</p>
-          <p className={`text-lg font-bold ${getTrendColor()}`}>
-            {priceChange > 0 ? '+' : ''}{formatPrice(Math.abs(priceChange))}
-          </p>
-        </div>
-      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="mb-8">
+              <SchedulerStatus />
+            </div>
+            <CategoryFilter
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onCategoryChange={handleCategoryChange}
+            />
+          </div>
 
-      {/* Chart */}
-      <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-            <XAxis 
-              dataKey="date" 
-              stroke="#9CA3AF"
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis 
-              stroke="#9CA3AF"
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(value) => `${currencySymbol}${value}`}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend 
-              wrapperStyle={{ color: '#9CA3AF', fontSize: '12px' }}
-            />
-            
-            {/* Price range area */}
-            <Line
-              type="monotone"
-              dataKey="maxPrice"
-              stroke="#EF4444"
-              strokeWidth={2}
-              dot={{ fill: '#EF4444', strokeWidth: 2, r: 4 }}
-              name="Highest Price"
-              strokeDasharray="5 5"
-            />
-            <Line
-              type="monotone"
-              dataKey="avgPrice"
-              stroke="#3B82F6"
-              strokeWidth={3}
-              dot={{ fill: '#3B82F6', strokeWidth: 2, r: 5 }}
-              name="Average Price"
-            />
-            <Line
-              type="monotone"
-              dataKey="minPrice"
-              stroke="#10B981"
-              strokeWidth={2}
-              dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
-              name="Lowest Price"
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            {loading ? (
+              <LoadingSpinner />
+            ) : (
+              <>
+                {/* Results Header */}
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-3xl font-semibold text-gray-100">
+                    {searchQuery ? `Search Results for "${searchQuery}"` : '🔥 Today\'s Hottest Deals'}
+                  </h2>
+                  <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
+                    {products.length} product{products.length !== 1 ? 's' : ''} found
+                  </span>
+                </div>
 
-      {/* Chart Legend */}
-      <div className="mt-4 text-xs text-gray-400 text-center">
-        <p>💡 Tip: Hover over data points to see detailed price information for each day</p>
-      </div>
+                {/* Products Grid */}
+                {products.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    {products.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onClick={setSelectedProduct}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <div className="text-gray-500 mb-6">
+                      <Package className="w-20 h-20 mx-auto animate-pulse-slow" />
+                    </div>
+                    <h3 className="text-2xl font-medium text-gray-300 mb-3">No products found</h3>
+                    <p className="text-gray-400 text-lg">
+                      {searchQuery 
+                        ? 'Try adjusting your search terms or browse different categories'
+                        : 'No products available at the moment'
+                      }
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Product Detail Modal */}
+      {selectedProduct && (
+        <ProductDetail
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          selectedCountry={selectedCountry}
+        />
+      )}
     </div>
   )
 }
+
+export default App
