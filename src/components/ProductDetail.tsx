@@ -34,10 +34,10 @@ export function ProductDetail({ product, onClose }: ProductDetailProps) {
 
   const getAvailabilityColor = (availability: string) => {
     switch (availability) {
-      case 'in_stock': return 'text-success-300 bg-success-500/20 border-success-500/30'
-      case 'limited_stock': return 'text-warning-300 bg-warning-500/20 border-warning-500/30'
-      case 'out_of_stock': return 'text-error-300 bg-error-500/20 border-error-500/30'
-      default: return 'text-gray-300 bg-gray-500/20 border-gray-500/30'
+      case 'in_stock': return 'text-success-600 bg-success-50'
+      case 'limited_stock': return 'text-warning-600 bg-warning-50'
+      case 'out_of_stock': return 'text-error-600 bg-error-50'
+      default: return 'text-gray-600 bg-gray-50'
     }
   }
 
@@ -162,6 +162,10 @@ export function ProductDetail({ product, onClose }: ProductDetailProps) {
                       <div className="bg-primary-500/10 border border-primary-500/20 rounded-xl p-3 text-center">
                         <p className="text-gray-400 text-xs">You Save</p>
                         <p className="font-bold text-primary-400 text-lg">{formatPrice(product.highest_price - product.lowest_price, sortedPrices[0]?.currency)}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Price List */}
