@@ -186,6 +186,7 @@ function App() {
         <ProductDetail
           product={selectedProduct}
           onClose={() => setSelectedProduct(null)}
+          selectedCountry={selectedCountry}
         />
       )}
     </div>

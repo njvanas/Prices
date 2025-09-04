@@ -7,14 +7,17 @@ type Retailer = Database['public']['Tables']['retailers']['Row']
 type Category = Database['public']['Tables']['categories']['Row']
 type Country = Database['public']['Tables']['countries']['Row']
 type FeaturedDeal = Database['public']['Tables']['featured_deals']['Row']
+type PriceHistory = Database['public']['Tables']['price_history']['Row']
 
 export interface ProductWithPrices extends Product {
   prices: (Price & { retailer: Retailer })[]
   category?: Category
-  lowestPrice?: number
-  highestPrice?: number
-  savingsAmount?: number
-  savingsPercentage?: number
+  lowest_price?: number
+  highest_price?: number
+  savings_amount?: number
+  savings_percentage?: number
+  deal_rank?: number
+  currency_symbol?: string
 }
 
 export class PriceComparisonAPI {
@@ -79,6 +82,15 @@ export class PriceComparisonAPI {
 
     if (error) throw error
 
+    // Get country info for currency symbol
+    const { data: countryData } = await supabase
+      .from('countries')
+      .select('currency_symbol')
+      .eq('code', countryCode)
+      .single()
+
+    const currencySymbol = countryData?.currency_symbol || '$'
+
     // Filter products to only include those with prices from retailers in the selected country
     const { data: countryRetailers } = await supabase
       .from('retailer_countries')
@@ -90,24 +102,25 @@ export class PriceComparisonAPI {
     const filteredProducts = (products || [])
       .map(product => {
         const countryPrices = product.prices.filter(price => 
-          retailerIds.includes(price.retailer_id)
+          retailerIds.includes(price.retailer_id) && price.retailer.is_active
         )
         
         if (countryPrices.length === 0) return null
 
         const prices = countryPrices.map(price => parseFloat(price.price.toString()))
-        const lowestPrice = Math.min(...prices)
-        const highestPrice = Math.max(...prices)
-        const savingsAmount = highestPrice - lowestPrice
-        const savingsPercentage = highestPrice > 0 ? (savingsAmount / highestPrice) * 100 : 0
+        const lowest_price = Math.min(...prices)
+        const highest_price = Math.max(...prices)
+        const savings_amount = highest_price - lowest_price
+        const savings_percentage = highest_price > 0 ? (savings_amount / highest_price) * 100 : 0
 
         return {
           ...product,
           prices: countryPrices,
-          lowestPrice,
-          highestPrice,
-          savingsAmount,
-          savingsPercentage
+          lowest_price,
+          highest_price,
+          savings_amount,
+          savings_percentage,
+          currency_symbol: currencySymbol
         }
       })
       .filter(Boolean) as ProductWithPrices[]
@@ -116,6 +129,15 @@ export class PriceComparisonAPI {
   }
 
   static async getFeaturedProducts(countryCode: string = 'US'): Promise<ProductWithPrices[]> {
+    // Get country info for currency symbol
+    const { data: countryData } = await supabase
+      .from('countries')
+      .select('currency_symbol')
+      .eq('code', countryCode)
+      .single()
+
+    const currencySymbol = countryData?.currency_symbol || '$'
+
     // First try to get featured deals
     const { data: featuredDeals, error: dealsError } = await supabase
       .from('featured_deals')
@@ -148,7 +170,7 @@ export class PriceComparisonAPI {
           if (!deal.product) return null
           
           const countryPrices = deal.product.prices.filter(price => 
-            retailerIds.includes(price.retailer_id)
+            retailerIds.includes(price.retailer_id) && price.retailer.is_active
           )
           
           if (countryPrices.length === 0) return null
@@ -156,10 +178,12 @@ export class PriceComparisonAPI {
           return {
             ...deal.product,
             prices: countryPrices,
-            lowestPrice: deal.lowest_price,
-            highestPrice: deal.highest_price,
-            savingsAmount: deal.savings_amount,
-            savingsPercentage: deal.savings_percentage
+            lowest_price: deal.lowest_price,
+            highest_price: deal.highest_price,
+            savings_amount: deal.savings_amount,
+            savings_percentage: deal.savings_percentage,
+            deal_rank: deal.deal_rank,
+            currency_symbol: currencySymbol
           }
         })
         .filter(Boolean) as ProductWithPrices[]
@@ -172,8 +196,8 @@ export class PriceComparisonAPI {
     // Fallback: get products with best savings
     const products = await this.searchProducts('', countryCode)
     return products
-      .filter(product => product.savingsPercentage && product.savingsPercentage >= 10)
-      .sort((a, b) => (b.savingsPercentage || 0) - (a.savingsPercentage || 0))
+      .filter(product => product.savings_percentage && product.savings_percentage >= 10)
+      .sort((a, b) => (b.savings_percentage || 0) - (a.savings_percentage || 0))
       .slice(0, 10)
   }
 
@@ -193,6 +217,15 @@ export class PriceComparisonAPI {
 
     if (error || !product) return null
 
+    // Get country info for currency symbol
+    const { data: countryData } = await supabase
+      .from('countries')
+      .select('currency_symbol')
+      .eq('code', countryCode)
+      .single()
+
+    const currencySymbol = countryData?.currency_symbol || '$'
+
     // Filter prices by country retailers
     const { data: countryRetailers } = await supabase
       .from('retailer_countries')
@@ -201,24 +234,56 @@ export class PriceComparisonAPI {
 
     const retailerIds = countryRetailers?.map(rc => rc.retailer_id) || []
     const countryPrices = product.prices.filter(price => 
-      retailerIds.includes(price.retailer_id)
+      retailerIds.includes(price.retailer_id) && price.retailer.is_active
     )
 
     if (countryPrices.length === 0) return null
 
     const prices = countryPrices.map(price => parseFloat(price.price.toString()))
-    const lowestPrice = Math.min(...prices)
-    const highestPrice = Math.max(...prices)
-    const savingsAmount = highestPrice - lowestPrice
-    const savingsPercentage = highestPrice > 0 ? (savingsAmount / highestPrice) * 100 : 0
+    const lowest_price = Math.min(...prices)
+    const highest_price = Math.max(...prices)
+    const savings_amount = highest_price - lowest_price
+    const savings_percentage = highest_price > 0 ? (savings_amount / highest_price) * 100 : 0
 
     return {
       ...product,
       prices: countryPrices,
-      lowestPrice,
-      highestPrice,
-      savingsAmount,
-      savingsPercentage
+      lowest_price,
+      highest_price,
+      savings_amount,
+      savings_percentage,
+      currency_symbol: currencySymbol
     }
+  }
+
+  static async getPriceHistory(
+    productId: string, 
+    countryCode: string = 'US',
+    days: number = 30
+  ): Promise<(PriceHistory & { retailer: Retailer })[]> {
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
+
+    // Get retailers for this country
+    const { data: countryRetailers } = await supabase
+      .from('retailer_countries')
+      .select('retailer_id')
+      .eq('country_code', countryCode)
+
+    const retailerIds = countryRetailers?.map(rc => rc.retailer_id) || []
+
+    const { data, error } = await supabase
+      .from('price_history')
+      .select(`
+        *,
+        retailer:retailers(*)
+      `)
+      .eq('product_id', productId)
+      .in('retailer_id', retailerIds)
+      .gte('recorded_at', startDate.toISOString())
+      .order('recorded_at', { ascending: true })
+
+    if (error) throw error
+    return data || []
   }
 }
