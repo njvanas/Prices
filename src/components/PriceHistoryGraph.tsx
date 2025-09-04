@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Package } from 'lucide-react'
-import { Header } from './components/Header'
-import { ProductCard } from './components/ProductCard'
-import { ProductDetail } from './components/ProductDetail'
-import { CategoryFilter } from './components/CategoryFilter'
-import { LoadingSpinner } from './components/LoadingSpinner'
-import { SchedulerStatus } from './components/SchedulerStatus'
-import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
-import type { Database } from './lib/database.types'
+import { Header } from './Header'
+import { ProductCard } from './ProductCard'
+import { ProductDetail } from './ProductDetail'
+import { CategoryFilter } from './CategoryFilter'
+import LoadingSpinner from './LoadingSpinner'
+import { SchedulerStatus } from './SchedulerStatus'
+import { PriceComparisonAPI, type ProductWithPrices } from '../lib/api'
+import type { Database } from '../lib/database.types'
 
 type Category = Database['public']['Tables']['categories']['Row']
 type Country = Database['public']['Tables']['countries']['Row']
