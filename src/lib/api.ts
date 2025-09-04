@@ -192,50 +192,50 @@ function App() {
         />
       )}
     </div>
-  },
-
-  async getPriceHistory(productId: string, countryCode: string): Promise<{
-    date: string
-    min_price: number
-    max_price: number
-    avg_price: number
-    retailer_count: number
-  }[]> {
-    const { data, error } = await supabase
-      .from('price_history')
-      .select(`
-        recorded_at,
-        price,
-        retailers!inner (*)
-      `)
-      .eq('product_id', productId)
-      .gte('recorded_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order('recorded_at')
-    
-    if (error) throw error
-    
-    // Group by date and calculate statistics
-    const groupedData = (data || []).reduce((acc, entry) => {
-      const date = entry.recorded_at?.split('T')[0] || ''
-      if (!acc[date]) {
-        acc[date] = {
-          prices: [],
-          retailers: new Set()
-        }
-      }
-      acc[date].prices.push(entry.price)
-      acc[date].retailers.add(entry.retailers?.id)
-      return acc
-    }, {} as Record<string, { prices: number[], retailers: Set<string> }>)
-    
-    return Object.entries(groupedData).map(([date, data]) => ({
-      date,
-      min_price: Math.min(...data.prices),
-      max_price: Math.max(...data.prices),
-      avg_price: data.prices.reduce((sum, price) => sum + price, 0) / data.prices.length,
-      retailer_count: data.retailers.size
-    }))
   )
+}
+
+const getPriceHistory = async (productId: string, countryCode: string): Promise<{
+  date: string
+  min_price: number
+  max_price: number
+  avg_price: number
+  retailer_count: number
+}[]> => {
+  const { data, error } = await supabase
+    .from('price_history')
+    .select(`
+      recorded_at,
+      price,
+      retailers!inner (*)
+    `)
+    .eq('product_id', productId)
+    .gte('recorded_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+    .order('recorded_at')
+  
+  if (error) throw error
+  
+  // Group by date and calculate statistics
+  const groupedData = (data || []).reduce((acc, entry) => {
+    const date = entry.recorded_at?.split('T')[0] || ''
+    if (!acc[date]) {
+      acc[date] = {
+        prices: [],
+        retailers: new Set()
+      }
+    }
+    acc[date].prices.push(entry.price)
+    acc[date].retailers.add(entry.retailers?.id)
+    return acc
+  }, {} as Record<string, { prices: number[], retailers: Set<string> }>)
+  
+  return Object.entries(groupedData).map(([date, data]) => ({
+    date,
+    min_price: Math.min(...data.prices),
+    max_price: Math.max(...data.prices),
+    avg_price: data.prices.reduce((sum, price) => sum + price, 0) / data.prices.length,
+    retailer_count: data.retailers.size
+  }))
 }
 
 export default App
