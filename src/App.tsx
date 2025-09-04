@@ -117,6 +117,15 @@ function App() {
           </p>
         </div>
 
+        {/* Hot Deals Section - Only show when no search/filter is active */}
+        {!searchQuery && !selectedCategory && (
+          <HotDealsSection
+            deals={hotDeals}
+            loading={loading}
+            onProductClick={setSelectedProduct}
+          />
+        )}
+
         {error && (
           <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
             {error}
