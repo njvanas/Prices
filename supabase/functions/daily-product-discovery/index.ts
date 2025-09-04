@@ -72,105 +72,137 @@ const discoverProductsForCategory = async (categorySlug: string, countryCode: st
         category_slug: 'laptops',
         image_url: 'https://images.pexels.com/photos/205421/pexels-photo-205421.jpeg?auto=compress&cs=tinysrgb&w=400',
         specifications: {
-          processor: 'Apple M3 Pro 11-core CPU',
+          chip: 'Apple M3 Pro',
           memory: '18GB unified memory',
           storage: '512GB SSD',
           display: '14.2-inch Liquid Retina XDR',
-          graphics: '14-core GPU'
+          battery: 'Up to 18 hours'
         },
         retailer_prices: []
       },
       {
         name: 'Dell XPS 13 Plus',
         brand: 'Dell',
-        model: 'XPS9320',
-        description: 'Ultra-thin laptop with InfinityEdge display and premium build quality.',
+        model: '9320',
+        description: 'Ultra-portable laptop with InfinityEdge display and premium build quality.',
         category_slug: 'laptops',
         image_url: 'https://images.pexels.com/photos/18105/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=400',
         specifications: {
           processor: 'Intel Core i7-1360P',
           memory: '16GB LPDDR5',
           storage: '512GB PCIe SSD',
-          display: '13.4-inch FHD+ InfinityEdge',
-          graphics: 'Intel Iris Xe'
+          display: '13.4-inch OLED 3.5K',
+          weight: '2.73 lbs'
         },
         retailer_prices: []
       }
     ],
     'headphones': [
       {
-        name: 'Sony WH-1000XM5 Wireless Headphones',
+        name: 'Sony WH-1000XM5',
         brand: 'Sony',
-        model: 'WH1000XM5',
-        description: 'Industry-leading noise canceling with exceptional sound quality and 30-hour battery life.',
+        model: 'WH-1000XM5',
+        description: 'Industry-leading noise canceling headphones with exceptional sound quality.',
         category_slug: 'headphones',
         image_url: 'https://images.pexels.com/photos/3394650/pexels-photo-3394650.jpeg?auto=compress&cs=tinysrgb&w=400',
         specifications: {
-          type: 'Over-ear wireless',
-          noise_canceling: 'Active noise canceling',
+          noise_canceling: 'Industry-leading',
           battery_life: '30 hours',
-          connectivity: 'Bluetooth 5.2, USB-C',
+          quick_charge: '3 min for 3 hours',
+          connectivity: 'Bluetooth 5.2, NFC',
           weight: '250g'
         },
         retailer_prices: []
       },
       {
-        name: 'Apple AirPods Pro 2nd Generation',
+        name: 'Apple AirPods Pro 2nd Gen',
         brand: 'Apple',
         model: 'MTJV3AM/A',
-        description: 'Premium wireless earbuds with adaptive transparency and personalized spatial audio.',
+        description: 'Advanced noise cancellation with spatial audio and adaptive transparency.',
         category_slug: 'headphones',
         image_url: 'https://images.pexels.com/photos/8534088/pexels-photo-8534088.jpeg?auto=compress&cs=tinysrgb&w=400',
         specifications: {
-          type: 'In-ear wireless',
-          noise_canceling: 'Active noise canceling',
-          battery_life: '6 hours + 24 hours with case',
-          connectivity: 'Bluetooth 5.3, Lightning/USB-C',
-          features: 'Spatial Audio, Adaptive Transparency'
+          chip: 'Apple H2',
+          noise_canceling: 'Active Noise Cancellation',
+          battery_life: '6 hours (30 hours with case)',
+          spatial_audio: 'Personalized Spatial Audio',
+          water_resistance: 'IPX4'
+        },
+        retailer_prices: []
+      }
+    ],
+    'home-appliances': [
+      {
+        name: 'Dyson V15 Detect',
+        brand: 'Dyson',
+        model: 'V15',
+        description: 'Powerful cordless vacuum with laser dust detection and scientific proof of deep clean.',
+        category_slug: 'home-appliances',
+        image_url: 'https://images.pexels.com/photos/4239146/pexels-photo-4239146.jpeg?auto=compress&cs=tinysrgb&w=400',
+        specifications: {
+          suction_power: '230 AW',
+          battery_life: 'Up to 60 minutes',
+          dust_detection: 'Laser dust detection',
+          filtration: 'Advanced whole-machine filtration',
+          bin_capacity: '0.77 liters'
+        },
+        retailer_prices: []
+      }
+    ],
+    'sneakers': [
+      {
+        name: 'Nike Air Max 270',
+        brand: 'Nike',
+        model: 'AH8050',
+        description: 'Lifestyle sneakers with large Air unit for all-day comfort and style.',
+        category_slug: 'sneakers',
+        image_url: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=400',
+        specifications: {
+          air_technology: 'Max Air unit',
+          upper_material: 'Mesh and synthetic',
+          sole: 'Rubber outsole',
+          closure: 'Lace-up',
+          style: 'Lifestyle'
         },
         retailer_prices: []
       }
     ]
   }
 
-  // Generate realistic prices for different retailers
-  const generateRetailerPrices = (basePrice: number, countryCode: string) => {
+  // Generate realistic retailer prices for discovered products
+  const generateRetailerPrices = (basePrice: number, countryCode: string): ProductDiscoveryResult['retailer_prices'] => {
     const retailers = ['Amazon', 'Best Buy', 'Target', 'Walmart', 'Newegg']
     const currency = countryCode === 'US' ? 'USD' : countryCode === 'CA' ? 'CAD' : 'EUR'
     
-    return retailers.map(retailer => ({
+    return retailers.slice(0, Math.floor(Math.random() * 3) + 2).map(retailer => ({
       retailer_name: retailer,
-      price: basePrice * (0.85 + Math.random() * 0.3), // ±15% price variation
+      price: basePrice * (0.9 + Math.random() * 0.2), // ±10% price variation
       currency,
-      product_url: `https://${retailer.toLowerCase().replace(' ', '')}.com/product-${Math.random().toString(36).substr(2, 9)}`,
+      product_url: `https://${retailer.toLowerCase().replace(' ', '')}.com/product/${Math.random().toString(36).substr(2, 9)}`,
       availability: Math.random() > 0.1 ? 'in_stock' : 'limited_stock'
     }))
   }
 
-  // Base prices for different product types
-  const basePrices: Record<string, number> = {
-    'iPhone 15 Pro Max 256GB': 1199,
-    'Samsung Galaxy S24 Ultra 512GB': 1299,
-    'MacBook Pro 14-inch M3 Pro': 1999,
-    'Dell XPS 13 Plus': 1299,
-    'Sony WH-1000XM5 Wireless Headphones': 399,
-    'Apple AirPods Pro 2nd Generation': 249
-  }
+  // Add realistic prices to templates
+  Object.keys(productTemplates).forEach(category => {
+    productTemplates[category].forEach(product => {
+      const basePrices: Record<string, number> = {
+        'smartphones': 800 + Math.random() * 400,
+        'laptops': 1200 + Math.random() * 800,
+        'headphones': 200 + Math.random() * 300,
+        'home-appliances': 300 + Math.random() * 400,
+        'sneakers': 80 + Math.random() * 120
+      }
+      product.retailer_prices = generateRetailerPrices(basePrices[category] || 100, countryCode)
+    })
+  })
 
-  const categoryProducts = productTemplates[categorySlug] || []
-  
-  return categoryProducts.map(product => ({
-    ...product,
-    retailer_prices: generateRetailerPrices(basePrices[product.name] || 299, countryCode)
-  }))
+  return productTemplates[categorySlug] || []
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    })
+    return new Response(null, { status: 200, headers: corsHeaders })
   }
 
   try {
@@ -179,37 +211,36 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🔍 Starting daily product discovery and data fetching...')
+    console.log('🔍 Starting daily product discovery...')
 
-    // Get all active categories and countries
-    const [categoriesResult, countriesResult] = await Promise.all([
-      supabase.from('categories').select('*').order('name'),
-      supabase.from('countries').select('*').eq('is_active', true)
-    ])
+    // Get all categories
+    const { data: categories, error: categoriesError } = await supabase
+      .from('categories')
+      .select('*')
 
-    if (categoriesResult.error) throw categoriesResult.error
-    if (countriesResult.error) throw countriesResult.error
+    if (categoriesError) throw categoriesError
 
-    const categories = categoriesResult.data || []
-    const countries = countriesResult.data || []
+    // Get all active countries
+    const { data: countries, error: countriesError } = await supabase
+      .from('countries')
+      .select('*')
+      .eq('is_active', true)
 
-    console.log(`📂 Processing ${categories.length} categories across ${countries.length} countries`)
+    if (countriesError) throw countriesError
 
-    let totalProductsProcessed = 0
-    let totalPricesUpdated = 0
-    let newProductsAdded = 0
+    let totalProductsDiscovered = 0
+    let totalPricesAdded = 0
+    const discoveryLog = []
 
     // Process each category for each country
-    for (const category of categories) {
-      console.log(`\n📱 Processing category: ${category.name}`)
-      
-      for (const country of countries) {
-        console.log(`  🌍 Country: ${country.name} (${country.code})`)
+    for (const category of categories || []) {
+      for (const country of countries || []) {
+        console.log(`🔍 Discovering products for ${category.name} in ${country.name}...`)
 
         try {
-          // Discover new products for this category and country
+          // Discover new products for this category/country combination
           const discoveredProducts = await discoverProductsForCategory(category.slug, country.code)
-          
+
           for (const discoveredProduct of discoveredProducts) {
             // Check if product already exists
             const { data: existingProduct } = await supabase
@@ -223,7 +254,7 @@ Deno.serve(async (req: Request) => {
 
             if (existingProduct) {
               productId = existingProduct.id
-              console.log(`    ♻️  Updating existing product: ${discoveredProduct.name}`)
+              console.log(`✅ Product already exists: ${discoveredProduct.name}`)
             } else {
               // Create new product
               const { data: newProduct, error: productError } = await supabase
@@ -240,53 +271,63 @@ Deno.serve(async (req: Request) => {
                 .select('id')
                 .single()
 
-              if (productError) {
-                console.error(`❌ Error creating product ${discoveredProduct.name}:`, productError.message)
-                continue
-              }
-
+              if (productError) throw productError
               productId = newProduct.id
-              newProductsAdded++
-              console.log(`    ✨ Added new product: ${discoveredProduct.name}`)
+              totalProductsDiscovered++
+
+              console.log(`🆕 Created new product: ${discoveredProduct.name}`)
+
+              // Log product discovery
+              await supabase
+                .from('product_discovery_log')
+                .insert({
+                  product_id: productId,
+                  source: 'daily_discovery',
+                  category_id: category.id,
+                  country_code: country.code,
+                  initial_price: Math.min(...discoveredProduct.retailer_prices.map(rp => rp.price)),
+                  metadata: {
+                    discovery_method: 'automated_scan',
+                    retailer_count: discoveredProduct.retailer_prices.length
+                  }
+                })
             }
 
-            // Get retailers for this country
-            const { data: countryRetailers } = await supabase
-              .from('retailer_countries')
-              .select(`
-                retailer_id,
-                retailers!inner(id, name, is_active)
-              `)
-              .eq('country_code', country.code)
-              .eq('retailers.is_active', true)
-
-            const retailerMap = new Map(
-              countryRetailers?.map(rc => [rc.retailers.name, rc.retailer_id]) || []
-            )
-
-            // Process prices for each retailer
-            for (const priceData of discoveredProduct.retailer_prices) {
-              const retailerId = retailerMap.get(priceData.retailer_name)
-              if (!retailerId) continue
-
-              // Archive current price to history before updating
-              const { data: currentPrice } = await supabase
-                .from('prices')
-                .select('price')
-                .eq('product_id', productId)
-                .eq('retailer_id', retailerId)
+            // Process retailer prices
+            for (const retailerPrice of discoveredProduct.retailer_prices) {
+              // Get or create retailer
+              let { data: retailer } = await supabase
+                .from('retailers')
+                .select('id')
+                .eq('name', retailerPrice.retailer_name)
                 .single()
 
-              if (currentPrice) {
-                // Archive the current price to history
-                await supabase
-                  .from('price_history')
+              if (!retailer) {
+                const { data: newRetailer, error: retailerError } = await supabase
+                  .from('retailers')
                   .insert({
-                    product_id: productId,
-                    retailer_id: retailerId,
-                    price: currentPrice.price,
-                    currency: priceData.currency
+                    name: retailerPrice.retailer_name,
+                    website_url: `https://${retailerPrice.retailer_name.toLowerCase().replace(' ', '')}.com`,
+                    logo_url: '',
+                    is_active: true
                   })
+                  .select('id')
+                  .single()
+
+                if (retailerError) throw retailerError
+                retailer = newRetailer
+
+                // Link retailer to country
+                await supabase
+                  .from('retailer_countries')
+                  .insert({
+                    retailer_id: retailer.id,
+                    country_code: country.code,
+                    website_url: `https://${retailerPrice.retailer_name.toLowerCase().replace(' ', '')}.com`,
+                    is_primary: true
+                  })
+                  .onConflict('retailer_id,country_code')
+                  .ignoreDuplicates()
               }
 
               // Update or insert current price
@@ -294,101 +335,74 @@ Deno.serve(async (req: Request) => {
                 .from('prices')
                 .upsert({
                   product_id: productId,
-                  retailer_id: retailerId,
-                  price: priceData.price,
-                  currency: priceData.currency,
-                  product_url: priceData.product_url,
-                  availability: priceData.availability,
+                  retailer_id: retailer.id,
+                  price: retailerPrice.price,
+                  currency: retailerPrice.currency,
+                  product_url: retailerPrice.product_url,
+                  availability: retailerPrice.availability,
                   last_checked: new Date().toISOString()
                 }, {
                   onConflict: 'product_id,retailer_id'
                 })
 
-              if (priceError) {
-                console.error(`❌ Error updating price for ${priceData.retailer_name}:`, priceError.message)
-              } else {
-                totalPricesUpdated++
-              }
+              if (priceError) throw priceError
+              totalPricesAdded++
             }
-
-            totalProductsProcessed++
           }
+
+          discoveryLog.push({
+            category: category.name,
+            country: country.name,
+            products_found: discoveredProducts.length,
+            status: 'success'
+          })
+
         } catch (error) {
           console.error(`❌ Error processing ${category.name} in ${country.name}:`, error)
+          discoveryLog.push({
+            category: category.name,
+            country: country.name,
+            products_found: 0,
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          })
         }
       }
     }
 
-    // Clean up old price history (keep last 90 days)
-    const ninetyDaysAgo = new Date()
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-
-    const { error: cleanupError } = await supabase
-      .from('price_history')
-      .delete()
-      .lt('recorded_at', ninetyDaysAgo.toISOString())
-
-    if (cleanupError) {
-      console.error('❌ Error cleaning up old price history:', cleanupError.message)
-    } else {
-      console.log('🧹 Cleaned up price history older than 90 days')
-    }
-
-    // Trigger featured deals update
-    console.log('\n🏆 Triggering featured deals update...')
-    const dealsUpdateUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/global-deals-update`
-    const dealsResponse = await fetch(dealsUpdateUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    if (!dealsResponse.ok) {
-      console.error('❌ Failed to trigger deals update')
-    } else {
-      console.log('✅ Featured deals update triggered successfully')
-    }
-
     const summary = {
-      message: 'Daily product discovery completed successfully',
-      stats: {
-        categories_processed: categories.length,
-        countries_processed: countries.length,
-        total_products_processed: totalProductsProcessed,
-        new_products_added: newProductsAdded,
-        total_prices_updated: totalPricesUpdated,
-        timestamp: new Date().toISOString()
-      }
+      total_products_discovered: totalProductsDiscovered,
+      total_prices_updated: totalPricesAdded,
+      categories_processed: categories?.length || 0,
+      countries_processed: countries?.length || 0,
+      discovery_log: discoveryLog
     }
 
-    console.log('\n📊 Daily Discovery Summary:')
-    console.log(`   📂 Categories processed: ${categories.length}`)
-    console.log(`   🌍 Countries processed: ${countries.length}`)
-    console.log(`   📦 Products processed: ${totalProductsProcessed}`)
-    console.log(`   ✨ New products added: ${newProductsAdded}`)
-    console.log(`   💰 Prices updated: ${totalPricesUpdated}`)
+    console.log('✅ Daily product discovery completed:', summary)
 
     return new Response(
-      JSON.stringify(summary),
+      JSON.stringify({
+        success: true,
+        message: 'Daily product discovery completed successfully',
+        summary
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 200
       }
     )
 
   } catch (error) {
-    console.error('❌ Error in daily product discovery:', error)
+    console.error('❌ Daily product discovery failed:', error)
     
     return new Response(
-      JSON.stringify({ 
-        error: 'Failed to complete daily product discovery',
-        details: error instanceof Error ? error.message : 'Unknown error'
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status: 500
       }
     )
   }

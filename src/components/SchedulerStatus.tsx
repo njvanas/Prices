@@ -1,42 +1,38 @@
 import React, { useState, useEffect } from 'react'
-import { Clock, CheckCircle, XCircle, RefreshCw, Calendar, TrendingUp } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { Play, Clock, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
+import { PriceComparisonAPI } from '../lib/api'
 
 interface SchedulerRun {
   id: string
   run_type: string
   status: string
   started_at: string
-  completed_at: string | null
-  execution_time_minutes: number | null
-  tasks_completed: number
-  tasks_failed: number
-  summary: any
+  completed_at?: string
+  execution_time_minutes?: number
+  tasks_completed?: number
+  tasks_failed?: number
+  error_details?: string
+  summary?: {
+    total_tasks: number
+    success_rate: number
+    task_results: Array<{
+      task: string
+      status: string
+      duration_seconds?: number
+      error?: string
+    }>
+  }
 }
 
-interface SchedulerStatusProps {
-  onTriggerUpdate?: () => void
-}
-
-export function SchedulerStatus({ onTriggerUpdate }: SchedulerStatusProps) {
+export function SchedulerStatus() {
   const [schedulerRuns, setSchedulerRuns] = useState<SchedulerRun[]>([])
   const [loading, setLoading] = useState(true)
   const [triggering, setTriggering] = useState(false)
 
-  useEffect(() => {
-    loadSchedulerStatus()
-  }, [])
-
   const loadSchedulerStatus = async () => {
     try {
-      const { data, error } = await supabase
-        .from('scheduler_runs')
-        .select('*')
-        .order('started_at', { ascending: false })
-        .limit(5)
-
-      if (error) throw error
-      setSchedulerRuns(data || [])
+      const runs = await PriceComparisonAPI.getSchedulerStatus()
+      setSchedulerRuns(runs)
     } catch (error) {
       console.error('Failed to load scheduler status:', error)
     } finally {
@@ -44,186 +40,195 @@ export function SchedulerStatus({ onTriggerUpdate }: SchedulerStatusProps) {
     }
   }
 
-  const triggerManualUpdate = async () => {
+  const triggerUpdate = async () => {
+    setTriggering(true)
     try {
-      setTriggering(true)
-      
-      // Trigger the master scheduler
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/master-daily-scheduler`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        console.log('✅ Manual update triggered successfully')
-        // Refresh status after a delay
-        setTimeout(() => {
-          loadSchedulerStatus()
-          onTriggerUpdate?.()
-        }, 2000)
-      } else {
-        console.error('❌ Failed to trigger manual update')
+      const result = await PriceComparisonAPI.triggerDataUpdate()
+      if (result.success) {
+        // Refresh status after triggering
+        setTimeout(loadSchedulerStatus, 2000)
       }
     } catch (error) {
-      console.error('Error triggering manual update:', error)
+      console.error('Failed to trigger update:', error)
     } finally {
       setTriggering(false)
     }
   }
 
+  useEffect(() => {
+    loadSchedulerStatus()
+    // Refresh every 30 seconds
+    const interval = setInterval(loadSchedulerStatus, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-5 h-5 text-success-400" />
-      case 'failed':
-        return <XCircle className="w-5 h-5 text-error-400" />
       case 'running':
-        return <RefreshCw className="w-5 h-5 text-primary-400 animate-spin" />
+        return <Clock className="w-4 h-4 text-warning-400 animate-pulse" />
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-success-400" />
+      case 'completed_with_errors':
+        return <AlertCircle className="w-4 h-4 text-warning-400" />
+      case 'failed':
+        return <XCircle className="w-4 h-4 text-error-400" />
       default:
-        return <Clock className="w-5 h-5 text-gray-400" />
+        return <Clock className="w-4 h-4 text-gray-400" />
     }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'text-success-400'
-      case 'failed': return 'text-error-400'
-      case 'running': return 'text-primary-400'
-      default: return 'text-gray-400'
+      case 'running':
+        return 'text-warning-300 bg-warning-500/10 border-warning-500/30'
+      case 'completed':
+        return 'text-success-300 bg-success-500/10 border-success-500/30'
+      case 'completed_with_errors':
+        return 'text-warning-300 bg-warning-500/10 border-warning-500/30'
+      case 'failed':
+        return 'text-error-300 bg-error-500/10 border-error-500/30'
+      default:
+        return 'text-gray-300 bg-gray-500/10 border-gray-500/30'
     }
-  }
-
-  const formatDuration = (minutes: number | null) => {
-    if (!minutes) return 'N/A'
-    if (minutes < 1) return `${Math.round(minutes * 60)}s`
-    return `${minutes.toFixed(1)}m`
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
   }
 
   if (loading) {
     return (
-      <div className="bg-dark-700/30 border border-dark-600 rounded-xl p-6">
+      <div className="bg-dark-800/50 backdrop-blur-sm rounded-xl p-6 border border-dark-600/50">
         <div className="animate-pulse">
-          <div className="h-6 bg-dark-600 rounded mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-dark-600 rounded"></div>
-            <div className="h-4 bg-dark-600 rounded w-3/4"></div>
+          <div className="h-4 bg-gray-600 rounded w-1/3 mb-4"></div>
+          <div className="space-y-2">
+            <div className="h-3 bg-gray-700 rounded"></div>
+            <div className="h-3 bg-gray-700 rounded w-5/6"></div>
           </div>
         </div>
       </div>
     )
   }
 
+  const latestRun = schedulerRuns[0]
+
   return (
-    <div className="bg-dark-700/30 border border-dark-600 rounded-xl p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-primary-500/20 rounded-xl">
-            <Calendar className="w-6 h-6 text-primary-400" />
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold text-gray-100">Data Update Status</h3>
-            <p className="text-gray-400 text-sm">Automated daily price tracking and product discovery</p>
-          </div>
-        </div>
+    <div className="bg-dark-800/50 backdrop-blur-sm rounded-xl p-6 border border-dark-600/50">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
+          <RefreshCw className="w-5 h-5 text-primary-400" />
+          Data Update Status
+        </h3>
         <button
-          onClick={triggerManualUpdate}
-          disabled={triggering}
-          className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-800 text-white px-4 py-2 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 disabled:scale-100"
+          onClick={triggerUpdate}
+          disabled={triggering || latestRun?.status === 'running'}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-medium"
         >
-          <RefreshCw className={`w-4 h-4 ${triggering ? 'animate-spin' : ''}`} />
-          <span>{triggering ? 'Updating...' : 'Update Now'}</span>
+          {triggering ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Triggering...
+            </>
+          ) : (
+            <>
+              <Play className="w-4 h-4" />
+              Update Now
+            </>
+          )}
         </button>
       </div>
 
-      {/* Recent Runs */}
-      <div className="space-y-4">
-        {schedulerRuns.length === 0 ? (
-          <div className="text-center py-8">
-            <TrendingUp className="w-12 h-12 mx-auto text-gray-500 mb-4" />
-            <p className="text-gray-400">No scheduler runs recorded yet</p>
-            <p className="text-gray-500 text-sm mt-2">Trigger a manual update to start tracking</p>
-          </div>
-        ) : (
-          schedulerRuns.map((run) => (
-            <div
-              key={run.id}
-              className="bg-dark-800/50 border border-dark-600 rounded-lg p-4 hover:bg-dark-800/70 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center space-x-3">
-                  {getStatusIcon(run.status)}
-                  <div>
-                    <h4 className={`font-medium ${getStatusColor(run.status)}`}>
-                      {run.run_type.charAt(0).toUpperCase() + run.run_type.slice(1)} Update
-                    </h4>
-                    <p className="text-gray-400 text-sm">
-                      {formatDate(run.started_at)}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-gray-300 font-medium">
-                    {formatDuration(run.execution_time_minutes)}
-                  </p>
-                  <p className="text-gray-400 text-sm">
-                    {run.tasks_completed}✅ {run.tasks_failed}❌
-                  </p>
-                </div>
+      {latestRun ? (
+        <div className="space-y-4">
+          {/* Latest Run Status */}
+          <div className={`p-4 rounded-lg border ${getStatusColor(latestRun.status)}`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                {getStatusIcon(latestRun.status)}
+                <span className="font-medium capitalize">
+                  {latestRun.status.replace('_', ' ')}
+                </span>
               </div>
-
-              {/* Summary Stats */}
-              {run.summary && Object.keys(run.summary).length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-dark-600">
-                  {Object.entries(run.summary).map(([key, value]) => (
-                    <div key={key} className="text-center">
-                      <p className="text-gray-400 text-xs mb-1">
-                        {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </p>
-                      <p className="text-gray-200 font-semibold">
-                        {typeof value === 'number' ? value.toLocaleString() : String(value)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Error Details */}
-              {run.status === 'failed' && run.error_details && (
-                <div className="mt-4 p-3 bg-error-500/10 border border-error-500/30 rounded-lg">
-                  <p className="text-error-300 text-sm font-medium mb-1">Error Details:</p>
-                  <p className="text-error-200 text-xs">{run.error_details}</p>
-                </div>
-              )}
+              <span className="text-sm opacity-75">
+                {new Date(latestRun.started_at).toLocaleString()}
+              </span>
             </div>
-          ))
-        )}
-      </div>
+            
+            {latestRun.summary && (
+              <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
+                <div>
+                  <span className="opacity-75">Tasks:</span>
+                  <span className="ml-2 font-medium">
+                    {latestRun.tasks_completed || 0}/{latestRun.summary.total_tasks}
+                  </span>
+                </div>
+                <div>
+                  <span className="opacity-75">Success Rate:</span>
+                  <span className="ml-2 font-medium">
+                    {latestRun.summary.success_rate || 0}%
+                  </span>
+                </div>
+                {latestRun.execution_time_minutes && (
+                  <div className="col-span-2">
+                    <span className="opacity-75">Duration:</span>
+                    <span className="ml-2 font-medium">
+                      {latestRun.execution_time_minutes} minutes
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-      {/* Info Footer */}
-      <div className="mt-6 pt-6 border-t border-dark-600">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-          <div className="bg-dark-800/30 rounded-lg p-4">
-            <h4 className="text-gray-300 font-medium mb-2">🔍 Product Discovery</h4>
-            <p className="text-gray-400 text-sm">Automatically finds new products across all categories daily</p>
-          </div>
-          <div className="bg-dark-800/30 rounded-lg p-4">
-            <h4 className="text-gray-300 font-medium mb-2">📈 Price Tracking</h4>
-            <p className="text-gray-400 text-sm">Maintains 90-day price history like a wayback machine</p>
-          </div>
-          <div className="bg-dark-800/30 rounded-lg p-4">
-            <h4 className="text-gray-300 font-medium mb-2">🏆 Deal Ranking</h4>
-            <p className="text-gray-400 text-sm">Updates featured deals based on savings and trends</p>
-          </div>
+          {/* Task Breakdown */}
+          {latestRun.summary?.task_results && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-gray-300">Task Details:</h4>
+              {latestRun.summary.task_results.map((task, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-dark-700/30 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    {task.status === 'completed' ? (
+                      <CheckCircle className="w-4 h-4 text-success-400" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-error-400" />
+                    )}
+                    <span className="text-sm text-gray-200">{task.task}</span>
+                  </div>
+                  {task.duration_seconds && (
+                    <span className="text-xs text-gray-400">
+                      {task.duration_seconds}s
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recent Runs History */}
+          {schedulerRuns.length > 1 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-gray-300">Recent Runs:</h4>
+              <div className="space-y-1">
+                {schedulerRuns.slice(1, 6).map((run) => (
+                  <div key={run.id} className="flex items-center justify-between p-2 bg-dark-700/20 rounded">
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(run.status)}
+                      <span className="text-sm text-gray-300">
+                        {new Date(run.started_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {run.tasks_completed || 0}/{run.summary?.total_tasks || 0} tasks
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="text-center py-8 text-gray-400">
+          <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p>No scheduler runs found</p>
+          <p className="text-sm mt-1">Click "Update Now" to start data collection</p>
+        </div>
+      )}
     </div>
   )
 }

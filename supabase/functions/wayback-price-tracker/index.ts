@@ -6,55 +6,59 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
-interface HistoricalPriceData {
+interface PriceSnapshot {
   product_id: string
   retailer_id: string
-  historical_prices: Array<{
-    price: number
-    date: string
-    availability: string
-  }>
+  price: number
+  currency: string
+  recorded_at: string
+  price_change_percent?: number
+  is_deal: boolean
+  deal_score: number
 }
 
-// Simulates fetching historical price data (like wayback machine for prices)
-const fetchHistoricalPrices = async (productId: string, retailerId: string, daysBack: number = 365): Promise<HistoricalPriceData> => {
-  // In production, this would query archived price data from various sources
-  // For simulation, we'll generate realistic historical price patterns
-  
-  const historical_prices = []
-  const basePrice = 299 + Math.random() * 1000 // Random base price
+// Generate historical price data (simulates wayback machine functionality)
+const generateHistoricalPrices = (currentPrice: number, daysBack: number): number[] => {
+  const prices = []
+  let price = currentPrice * (1.1 + Math.random() * 0.2) // Start 10-30% higher than current
   
   for (let i = daysBack; i >= 0; i--) {
-    const date = new Date()
-    date.setDate(date.getDate() - i)
-    
-    // Simulate realistic price fluctuations with seasonal trends
-    const seasonalFactor = 1 + 0.1 * Math.sin((date.getMonth() / 12) * 2 * Math.PI) // Seasonal variation
+    // Simulate market trends with seasonal variations
+    const seasonalFactor = 1 + 0.1 * Math.sin((i / 365) * 2 * Math.PI) // Yearly cycle
+    const weeklyFactor = 1 + 0.05 * Math.sin((i / 7) * 2 * Math.PI) // Weekly cycle
     const randomFactor = 0.95 + Math.random() * 0.1 // ±5% daily variation
-    const trendFactor = 1 - (i / daysBack) * 0.15 // Gradual price decrease over time
     
-    const price = basePrice * seasonalFactor * randomFactor * trendFactor
+    // Apply gradual downward trend (prices generally decrease over time)
+    const trendFactor = 1 - (daysBack - i) * 0.001 // 0.1% decrease per day
     
-    historical_prices.push({
-      price: Math.round(price * 100) / 100,
-      date: date.toISOString().split('T')[0],
-      availability: Math.random() > 0.05 ? 'in_stock' : 'out_of_stock'
-    })
+    price = price * seasonalFactor * weeklyFactor * randomFactor * trendFactor
+    
+    // Ensure price doesn't go below 70% of current price
+    price = Math.max(price, currentPrice * 0.7)
+    
+    prices.push(Math.round(price * 100) / 100)
   }
   
-  return {
-    product_id: productId,
-    retailer_id: retailerId,
-    historical_prices
-  }
+  return prices
+}
+
+// Calculate deal score based on historical context
+const calculateDealScore = (currentPrice: number, historicalPrices: number[]): number => {
+  const avgPrice = historicalPrices.reduce((sum, p) => sum + p, 0) / historicalPrices.length
+  const minPrice = Math.min(...historicalPrices)
+  const maxPrice = Math.max(...historicalPrices)
+  
+  // Score from 0-10 based on how good the current price is
+  const priceRange = maxPrice - minPrice
+  if (priceRange === 0) return 5 // No variation, neutral score
+  
+  const pricePosition = (maxPrice - currentPrice) / priceRange
+  return Math.round(pricePosition * 10 * 10) / 10 // Round to 1 decimal
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    })
+    return new Response(null, { status: 200, headers: corsHeaders })
   }
 
   try {
@@ -63,153 +67,130 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🕰️ Starting wayback price tracker - backfilling historical data...')
+    console.log('🕰️ Starting wayback price tracking...')
 
-    // Get all products that need historical data
-    const { data: products, error: productsError } = await supabase
-      .from('products')
+    // Get all current prices
+    const { data: currentPrices, error: pricesError } = await supabase
+      .from('prices')
       .select(`
-        id,
-        name,
-        prices(
-          retailer_id,
-          retailer:retailers(name, is_active)
-        )
+        *,
+        product:products(name, brand),
+        retailer:retailers(name)
       `)
-      .limit(50) // Process in batches to avoid timeouts
 
-    if (productsError) throw productsError
-
-    if (!products || products.length === 0) {
-      return new Response(
-        JSON.stringify({ message: 'No products found for historical tracking' }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      )
-    }
-
-    console.log(`📦 Backfilling historical data for ${products.length} products...`)
+    if (pricesError) throw pricesError
 
     let totalHistoricalRecords = 0
+    let totalProductsProcessed = 0
 
-    for (const product of products) {
-      if (!product.prices || product.prices.length === 0) continue
+    // Process each current price to generate historical data
+    for (const currentPrice of currentPrices || []) {
+      try {
+        console.log(`📊 Processing price history for ${currentPrice.product?.name} at ${currentPrice.retailer?.name}`)
 
-      console.log(`📈 Processing historical data for: ${product.name}`)
+        // Check if we already have historical data for this product/retailer
+        const { data: existingHistory } = await supabase
+          .from('price_history')
+          .select('id')
+          .eq('product_id', currentPrice.product_id)
+          .eq('retailer_id', currentPrice.retailer_id)
+          .limit(1)
 
-      for (const price of product.prices) {
-        if (!price.retailer?.is_active) continue
-
-        try {
-          // Check if we already have historical data for this product-retailer combination
-          const { data: existingHistory, error: historyCheckError } = await supabase
-            .from('price_history')
-            .select('id')
-            .eq('product_id', product.id)
-            .eq('retailer_id', price.retailer_id)
-            .limit(1)
-
-          if (historyCheckError) {
-            console.error(`❌ Error checking existing history:`, historyCheckError.message)
-            continue
-          }
-
-          // Skip if we already have historical data
-          if (existingHistory && existingHistory.length > 0) {
-            console.log(`    ⏭️  Skipping ${price.retailer.name} - historical data exists`)
-            continue
-          }
-
-          // Fetch historical price data
-          const historicalData = await fetchHistoricalPrices(product.id, price.retailer_id, 365)
-          
-          // Insert historical price records in batches
-          const batchSize = 50
-          for (let i = 0; i < historicalData.historical_prices.length; i += batchSize) {
-            const batch = historicalData.historical_prices.slice(i, i + batchSize)
-            
-            const historyRecords = batch.map(record => ({
-              product_id: product.id,
-              retailer_id: price.retailer_id,
-              price: record.price,
-              currency: 'USD', // Default currency
-              recorded_at: new Date(record.date).toISOString()
-            }))
-
-            const { error: insertError } = await supabase
-              .from('price_history')
-              .insert(historyRecords)
-
-            if (insertError) {
-              console.error(`❌ Error inserting historical batch:`, insertError.message)
-            } else {
-              totalHistoricalRecords += historyRecords.length
-            }
-          }
-
-          console.log(`    ✅ Added ${historicalData.historical_prices.length} historical records for ${price.retailer.name}`)
-
-        } catch (error) {
-          console.error(`❌ Error processing ${price.retailer.name}:`, error)
+        if (existingHistory && existingHistory.length > 0) {
+          console.log(`⏭️ Skipping - historical data already exists`)
+          continue
         }
-      }
-    }
 
-    // Update deal rankings based on new historical data
-    console.log('\n🏆 Updating deal rankings with historical context...')
-    
-    // Trigger global deals update to recalculate with new historical data
-    const dealsUpdateUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/global-deals-update`
-    const dealsResponse = await fetch(dealsUpdateUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'Content-Type': 'application/json'
-      }
-    })
+        // Generate 365 days of historical price data
+        const historicalPrices = generateHistoricalPrices(Number(currentPrice.price), 365)
+        const priceSnapshots: PriceSnapshot[] = []
 
-    if (!dealsResponse.ok) {
-      console.error('❌ Failed to trigger deals update')
-    } else {
-      console.log('✅ Deal rankings updated with historical context')
+        for (let dayOffset = 365; dayOffset >= 1; dayOffset--) {
+          const recordedDate = new Date()
+          recordedDate.setDate(recordedDate.getDate() - dayOffset)
+          
+          const historicalPrice = historicalPrices[365 - dayOffset]
+          const previousPrice = dayOffset < 365 ? historicalPrices[365 - dayOffset - 1] : historicalPrice
+          
+          const priceChangePercent = previousPrice > 0 
+            ? ((historicalPrice - previousPrice) / previousPrice) * 100 
+            : 0
+
+          const dealScore = calculateDealScore(historicalPrice, historicalPrices.slice(0, 365 - dayOffset + 1))
+          const isDeal = dealScore >= 7.0 // Consider it a deal if score is 7.0 or higher
+
+          priceSnapshots.push({
+            product_id: currentPrice.product_id,
+            retailer_id: currentPrice.retailer_id,
+            price: historicalPrice,
+            currency: currentPrice.currency,
+            recorded_at: recordedDate.toISOString(),
+            price_change_percent: Math.round(priceChangePercent * 100) / 100,
+            is_deal: isDeal,
+            deal_score: dealScore
+          })
+        }
+
+        // Insert historical data in batches
+        const batchSize = 50
+        for (let i = 0; i < priceSnapshots.length; i += batchSize) {
+          const batch = priceSnapshots.slice(i, i + batchSize)
+          
+          const { error: insertError } = await supabase
+            .from('price_history')
+            .insert(batch)
+
+          if (insertError) {
+            console.error(`❌ Error inserting batch for ${currentPrice.product?.name}:`, insertError)
+            continue
+          }
+        }
+
+        totalHistoricalRecords += priceSnapshots.length
+        totalProductsProcessed++
+
+        console.log(`✅ Added ${priceSnapshots.length} historical records for ${currentPrice.product?.name}`)
+
+        // Add small delay to prevent overwhelming the database
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+      } catch (error) {
+        console.error(`❌ Error processing ${currentPrice.product?.name}:`, error)
+      }
     }
 
     const summary = {
-      message: 'Wayback price tracking completed successfully',
-      stats: {
-        products_processed: products.length,
-        historical_records_added: totalHistoricalRecords,
-        average_records_per_product: Math.round(totalHistoricalRecords / products.length),
-        timestamp: new Date().toISOString()
-      }
+      total_products_processed: totalProductsProcessed,
+      total_historical_records: totalHistoricalRecords,
+      days_of_history: 365,
+      processing_date: new Date().toISOString()
     }
 
-    console.log('\n📊 Wayback Tracking Summary:')
-    console.log(`   📦 Products processed: ${products.length}`)
-    console.log(`   📈 Historical records added: ${totalHistoricalRecords}`)
-    console.log(`   📊 Average records per product: ${Math.round(totalHistoricalRecords / products.length)}`)
+    console.log('✅ Wayback price tracking completed:', summary)
 
     return new Response(
-      JSON.stringify(summary),
+      JSON.stringify({
+        success: true,
+        message: 'Wayback price tracking completed successfully',
+        summary
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 200
       }
     )
 
   } catch (error) {
-    console.error('❌ Error in wayback price tracker:', error)
+    console.error('❌ Wayback price tracking failed:', error)
     
     return new Response(
-      JSON.stringify({ 
-        error: 'Failed to complete wayback price tracking',
-        details: error instanceof Error ? error.message : 'Unknown error'
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status: 500
       }
     )
   }

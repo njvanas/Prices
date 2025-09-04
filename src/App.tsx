@@ -5,6 +5,7 @@ import { ProductCard } from './components/ProductCard'
 import { ProductDetail } from './components/ProductDetail'
 import { CategoryFilter } from './components/CategoryFilter'
 import { LoadingSpinner } from './components/LoadingSpinner'
+import { SchedulerStatus } from './components/SchedulerStatus'
 import { HotDealsSection } from './components/HotDealsSection'
 import { SchedulerStatus } from './components/SchedulerStatus'
 import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
@@ -128,6 +129,9 @@ function App() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-1">
+            <div className="mb-8">
+              <SchedulerStatus />
+            </div>
             <CategoryFilter
               categories={categories}
               selectedCategory={selectedCategory}
