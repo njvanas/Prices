@@ -31,7 +31,7 @@ function App() {
         const [categoriesData, countriesData, productsData] = await Promise.all([
           PriceComparisonAPI.getCategories(),
           PriceComparisonAPI.getCountries(),
-          PriceComparisonAPI.getBestDeals('US')
+          PriceComparisonAPI.getFeaturedProducts('US')
         ])
         setCategories(categoriesData)
         setCountries(countriesData)
@@ -142,7 +142,7 @@ function App() {
                 {/* Results Header */}
                 <div className="flex items-center justify-between mb-8">
                   <h2 className="text-3xl font-semibold text-gray-100">
-                    {searchQuery ? `Search Results for "${searchQuery}"` : 'Featured Products'}
+                    {searchQuery ? `Search Results for "${searchQuery}"` : '🔥 Today\'s Hottest Deals'}
                   </h2>
                   <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
                     {products.length} product{products.length !== 1 ? 's' : ''} found
@@ -189,6 +189,9 @@ function App() {
       )}
     </div>
   )
+  savings_amount?: number
+  savings_percentage?: number
+  deal_rank?: number
 }
 
 export default App
