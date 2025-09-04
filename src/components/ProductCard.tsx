@@ -1,194 +1,97 @@
-import { useState, useEffect } from 'react'
-import { Package } from 'lucide-react'
-import { Header } from './components/Header'
-import { ProductCard } from './components/ProductCard'
-import { ProductDetail } from './components/ProductDetail'
-import { CategoryFilter } from './components/CategoryFilter'
-import { LoadingSpinner } from './components/LoadingSpinner'
-import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
-import type { Database } from './lib/database.types'
+import { ExternalLink, TrendingDown, Star } from 'lucide-react'
+import type { ProductWithPrices } from '../lib/api'
 
-type Category = Database['public']['Tables']['categories']['Row']
-type Country = Database['public']['Tables']['countries']['Row']
+interface ProductCardProps {
+  product: ProductWithPrices
+  onClick: (product: ProductWithPrices) => void
+}
 
-function App() {
-  const [products, setProducts] = useState<ProductWithPrices[]>([])
-  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [countries, setCountries] = useState<Country[]>([])
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [selectedCountry, setSelectedCountry] = useState('US')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true)
-        const [categoriesData, countriesData, productsData] = await Promise.all([
-          PriceComparisonAPI.getCategories(),
-          PriceComparisonAPI.getCountries(),
-          PriceComparisonAPI.getFeaturedProducts('US')
-        ])
-        setCategories(categoriesData)
-        setCountries(countriesData)
-        setProducts(productsData)
-        
-        // Set default country based on user's location (you could use IP geolocation)
-        // For now, defaulting to US
-        setSelectedCountry('US')
-      } catch (err) {
-        setError('Failed to load data. Please try again.')
-        console.error('Error loading initial data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadInitialData()
-  }, [])
-
-  // Handle country change
-  const handleCountryChange = async (countryCode: string) => {
-    try {
-      setLoading(true)
-      setSelectedCountry(countryCode)
-      const results = await PriceComparisonAPI.searchProducts(searchQuery, countryCode, selectedCategory || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Failed to load prices for selected country. Please try again.')
-      console.error('Country change error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle search
-  const handleSearch = async (query: string) => {
-    try {
-      setLoading(true)
-      setSearchQuery(query)
-      const results = await PriceComparisonAPI.searchProducts(query, selectedCountry, selectedCategory || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Search failed. Please try again.')
-      console.error('Search error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle category filter
-  const handleCategoryChange = async (categoryId: string | null) => {
-    try {
-      setLoading(true)
-      setSelectedCategory(categoryId)
-      const results = await PriceComparisonAPI.searchProducts(searchQuery, selectedCountry, categoryId || undefined)
-      setProducts(results)
-    } catch (err) {
-      setError('Failed to filter by category. Please try again.')
-      console.error('Category filter error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+export function ProductCard({ product, onClick }: ProductCardProps) {
+  const hasSignificantSavings = (product.savings_percentage || 0) >= 30
+  const isTopDeal = product.deal_rank && product.deal_rank <= 3
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
-      <Header 
-        onSearch={handleSearch} 
-        searchQuery={searchQuery}
-        countries={countries}
-        selectedCountry={selectedCountry}
-        onCountryChange={handleCountryChange}
-      />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent mb-6 text-shadow">
-            Find Better Prices, Instantly
-          </h1>
-          <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
-            🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
-          </p>
+    <div 
+      className="group bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/70 hover:border-slate-600/50 transition-all duration-300 cursor-pointer hover:scale-[1.02] hover:shadow-2xl hover:shadow-blue-500/10"
+      onClick={() => onClick(product)}
+    >
+      {/* Deal Badge */}
+      {hasSignificantSavings && (
+        <div className="flex items-center justify-between mb-4">
+          {isTopDeal && (
+            <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black px-3 py-1 rounded-full text-sm font-bold animate-pulse">
+              #{product.deal_rank} HOT DEAL 🔥
+            </div>
+          )}
+          <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-3 py-1 rounded-full text-sm font-semibold ml-auto">
+            Save {product.savings_percentage?.toFixed(0)}%
+          </div>
         </div>
+      )}
 
-        {error && (
-          <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
-            {error}
+      {/* Product Image */}
+      <div className="aspect-square bg-slate-700/30 rounded-xl mb-4 overflow-hidden">
+        {product.image_url ? (
+          <img 
+            src={product.image_url} 
+            alt={product.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-slate-500">
+            <Star className="w-12 h-12" />
           </div>
         )}
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <CategoryFilter
-              categories={categories}
-              selectedCategory={selectedCategory}
-              onCategoryChange={handleCategoryChange}
-            />
-          </div>
+      {/* Product Info */}
+      <div className="space-y-3">
+        <div>
+          <h3 className="font-semibold text-white text-lg leading-tight group-hover:text-blue-300 transition-colors">
+            {product.name}
+          </h3>
+          {product.brand && (
+            <p className="text-slate-400 text-sm mt-1">{product.brand}</p>
+          )}
+        </div>
 
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            {loading ? (
-              <LoadingSpinner />
-            ) : (
-              <>
-                {/* Results Header */}
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-3xl font-semibold text-gray-100">
-                    {searchQuery ? `Search Results for "${searchQuery}"` : '🔥 Today\'s Hottest Deals'}
-                  </h2>
-                  <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
-                    {products.length} product{products.length !== 1 ? 's' : ''} found
-                  </span>
+        {/* Price Info */}
+        <div className="space-y-2">
+          {product.lowest_price && product.highest_price && (
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-green-400">
+                  ${product.lowest_price.toFixed(2)}
                 </div>
-
-                {/* Products Grid */}
-                {products.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                    {products.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onClick={setSelectedProduct}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-20">
-                    <div className="text-gray-500 mb-6">
-                      <Package className="w-20 h-20 mx-auto animate-pulse-slow" />
-                    </div>
-                    <h3 className="text-2xl font-medium text-gray-300 mb-3">No products found</h3>
-                    <p className="text-gray-400 text-lg">
-                      {searchQuery 
-                        ? 'Try adjusting your search terms or browse different categories'
-                        : 'No products available at the moment'
-                      }
-                    </p>
+                {product.savings_amount && product.savings_amount > 0 && (
+                  <div className="flex items-center text-sm text-slate-400">
+                    <span className="line-through mr-2">${product.highest_price.toFixed(2)}</span>
+                    <TrendingDown className="w-4 h-4 text-green-400" />
                   </div>
                 )}
-              </>
-            )}
+              </div>
+              {product.savings_amount && product.savings_amount > 0 && (
+                <div className="text-right">
+                  <div className="text-green-400 font-semibold">
+                    Save ${product.savings_amount.toFixed(2)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Retailers Count */}
+        <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
+          <span className="text-slate-400 text-sm">
+            {product.prices?.length || 0} retailers
+          </span>
+          <div className="flex items-center text-blue-400 text-sm font-medium group-hover:text-blue-300">
+            Tap for details
+            <ExternalLink className="w-4 h-4 ml-1" />
           </div>
         </div>
-      </main>
-
-      {/* Product Detail Modal */}
-      {selectedProduct && (
-        <ProductDetail
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-        />
-      )}
+      </div>
     </div>
   )
 }
-
-export default App
