@@ -5,6 +5,7 @@ import { ProductCard } from './components/ProductCard'
 import { ProductDetail } from './components/ProductDetail'
 import { CategoryFilter } from './components/CategoryFilter'
 import { LoadingSpinner } from './components/LoadingSpinner'
+import { HotDealsSection } from './components/HotDealsSection'
 import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
 import type { Database } from './lib/database.types'
 
@@ -116,15 +117,6 @@ function App() {
             🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
           </p>
         </div>
-
-        {/* Hot Deals Section - Only show when no search/filter is active */}
-        {!searchQuery && !selectedCategory && (
-          <HotDealsSection
-            deals={hotDeals}
-            loading={loading}
-            onProductClick={setSelectedProduct}
-          />
-        )}
 
         {error && (
           <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
