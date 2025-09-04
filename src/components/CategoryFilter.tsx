@@ -42,3 +42,4 @@ export function CategoryFilter({ categories, selectedCategory, onCategoryChange 
       </div>
     </div>
   )
+}
