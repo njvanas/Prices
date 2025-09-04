@@ -6,6 +6,7 @@ import { ProductDetail } from './components/ProductDetail'
 import { CategoryFilter } from './components/CategoryFilter'
 import { LoadingSpinner } from './components/LoadingSpinner'
 import { HotDealsSection } from './components/HotDealsSection'
+import { SchedulerStatus } from './components/SchedulerStatus'
 import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
 import type { Database } from './lib/database.types'
 
@@ -149,6 +150,13 @@ function App() {
                     {products.length} product{products.length !== 1 ? 's' : ''} found
                   </span>
                 </div>
+
+                {/* Scheduler Status - Show when no search query */}
+                {!searchQuery && (
+                  <div className="mb-12">
+                    <SchedulerStatus onTriggerUpdate={() => window.location.reload()} />
+                  </div>
+                )}
 
                 {/* Products Grid */}
                 {products.length > 0 ? (
