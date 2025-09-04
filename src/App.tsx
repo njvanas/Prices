@@ -7,7 +7,6 @@ import { CategoryFilter } from './components/CategoryFilter'
 import { LoadingSpinner } from './components/LoadingSpinner'
 import { SchedulerStatus } from './components/SchedulerStatus'
 import { HotDealsSection } from './components/HotDealsSection'
-import { SchedulerStatus } from './components/SchedulerStatus'
 import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
 import type { Database } from './lib/database.types'
 
