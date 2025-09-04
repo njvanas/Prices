@@ -1,4 +1,3 @@
-import React from 'react'
 import { Globe } from 'lucide-react'
 import type { Database } from '../lib/database.types'
 
@@ -11,8 +10,6 @@ interface CountrySelectorProps {
 }
 
 export function CountrySelector({ countries, selectedCountry, onCountryChange }: CountrySelectorProps) {
-  const selectedCountryData = countries.find(c => c.code === selectedCountry)
-
   return (
     <div className="relative">
       <select

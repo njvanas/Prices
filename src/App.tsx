@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Package } from 'lucide-react'
 import { Header } from './components/Header'
 import { ProductCard } from './components/ProductCard'
