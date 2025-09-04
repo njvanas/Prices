@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Package } from 'lucide-react'
 import { Header } from './components/Header'
 import { ProductCard } from './components/ProductCard'
 import { ProductDetail } from './components/ProductDetail'

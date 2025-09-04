@@ -87,7 +87,7 @@ export class PriceComparisonAPI {
         ...product,
         prices,
         lowest_price: priceValues.length > 0 ? Math.min(...priceValues) : undefined,
-        highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined
+        highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined,
         currency_symbol: countryData?.currency_symbol || '$'
       }
     })
@@ -128,7 +128,7 @@ export class PriceComparisonAPI {
       ...data,
       prices,
       lowest_price: priceValues.length > 0 ? Math.min(...priceValues) : undefined,
-      highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined
+      highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined,
       currency_symbol: countryData?.currency_symbol || '$'
     }
   }
@@ -190,7 +190,7 @@ export class PriceComparisonAPI {
         ...product,
         prices,
         lowest_price: priceValues.length > 0 ? Math.min(...priceValues) : undefined,
-        highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined
+        highest_price: priceValues.length > 0 ? Math.max(...priceValues) : undefined,
         currency_symbol: countryData?.currency_symbol || '$'
       }
     })
