@@ -6,7 +6,6 @@ import { ProductDetail } from './components/ProductDetail'
 import { CategoryFilter } from './components/CategoryFilter'
 import { LoadingSpinner } from './components/LoadingSpinner'
 import { SchedulerStatus } from './components/SchedulerStatus'
-import { HotDealsSection } from './components/HotDealsSection'
 import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
 import type { Database } from './lib/database.types'
 
@@ -15,7 +14,6 @@ type Country = Database['public']['Tables']['countries']['Row']
 
 function App() {
   const [products, setProducts] = useState<ProductWithPrices[]>([])
-  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [countries, setCountries] = useState<Country[]>([])
   const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
