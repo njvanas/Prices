@@ -1,61 +1,6 @@
 export interface Database {
   public: {
     Tables: {
-      countries: {
-        Row: {
-          id: string
-          code: string
-          name: string
-          currency_code: string
-          currency_symbol: string
-          is_active: boolean
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          code: string
-          name: string
-          currency_code?: string
-          currency_symbol?: string
-          is_active?: boolean
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          code?: string
-          name?: string
-          currency_code?: string
-          currency_symbol?: string
-          is_active?: boolean
-          created_at?: string
-        }
-      }
-      retailer_countries: {
-        Row: {
-          id: string
-          retailer_id: string
-          country_code: string
-          website_url: string
-          is_active: boolean
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          retailer_id: string
-          country_code: string
-          website_url: string
-          is_active?: boolean
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          retailer_id?: string
-          country_code?: string
-          website_url?: string
-          is_active?: boolean
-          created_at?: string
-        }
-      }
       categories: {
         Row: {
           id: string
@@ -152,7 +97,6 @@ export interface Database {
           currency: string
           product_url: string
           availability: string
-          country_code: string
           last_checked: string
           created_at: string
         }
@@ -164,7 +108,6 @@ export interface Database {
           currency?: string
           product_url: string
           availability?: string
-          country_code: string
           last_checked?: string
           created_at?: string
         }
@@ -176,7 +119,6 @@ export interface Database {
           currency?: string
           product_url?: string
           availability?: string
-          country_code?: string
           last_checked?: string
           created_at?: string
         }
@@ -188,7 +130,6 @@ export interface Database {
           retailer_id: string
           price: number
           currency: string
-          country_code: string
           recorded_at: string
         }
         Insert: {
@@ -197,7 +138,6 @@ export interface Database {
           retailer_id: string
           price: number
           currency?: string
-          country_code: string
           recorded_at?: string
         }
         Update: {
@@ -206,7 +146,6 @@ export interface Database {
           retailer_id?: string
           price?: number
           currency?: string
-          country_code?: string
           recorded_at?: string
         }
       }

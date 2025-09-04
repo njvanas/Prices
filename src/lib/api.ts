@@ -5,12 +5,17 @@ type Product = Database['public']['Tables']['products']['Row']
 type Price = Database['public']['Tables']['prices']['Row']
 type Retailer = Database['public']['Tables']['retailers']['Row']
 type Category = Database['public']['Tables']['categories']['Row']
-type Country = Database['public']['Tables']['countries']['Row']
-type RetailerCountry = Database['public']['Tables']['retailer_countries']['Row']
+
+// Simplified country interface since the table doesn't exist yet
+interface Country {
+  code: string
+  name: string
+  currency_symbol: string
+}
 
 export interface ProductWithPrices extends Product {
   category: Category | null
-  prices: (Price & { retailer: Retailer; retailer_country: RetailerCountry })[]
+  prices: (Price & { retailer: Retailer })[]
   lowest_price?: number
   highest_price?: number
   currency_symbol?: string
@@ -19,14 +24,16 @@ export interface ProductWithPrices extends Product {
 export class PriceComparisonAPI {
   // Get all supported countries
   static async getCountries(): Promise<Country[]> {
-    const { data, error } = await supabase
-      .from('countries')
-      .select('*')
-      .eq('is_active', true)
-      .order('name')
-
-    if (error) throw error
-    return data || []
+    // Return hardcoded countries until the countries table is created
+    return [
+      { code: 'US', name: 'United States', currency_symbol: '$' },
+      { code: 'UK', name: 'United Kingdom', currency_symbol: '£' },
+      { code: 'CA', name: 'Canada', currency_symbol: 'C$' },
+      { code: 'AU', name: 'Australia', currency_symbol: 'A$' },
+      { code: 'DE', name: 'Germany', currency_symbol: '€' },
+      { code: 'FR', name: 'France', currency_symbol: '€' },
+      { code: 'JP', name: 'Japan', currency_symbol: '¥' }
+    ]
   }
 
   // Get all categories
@@ -49,13 +56,9 @@ export class PriceComparisonAPI {
         category:categories(*),
         prices(
           *,
-          retailer:retailers(*),
-          retailer_country:retailer_countries!inner(*)
+          retailer:retailers(*)
         )
       `)
-      .eq('prices.country_code', countryCode)
-      .eq('prices.retailer_country.country_code', countryCode)
-      .eq('prices.retailer_country.is_active', true)
 
     if (query) {
       queryBuilder = queryBuilder.or(`name.ilike.%${query}%,brand.ilike.%${query}%,description.ilike.%${query}%`)
@@ -71,12 +74,9 @@ export class PriceComparisonAPI {
 
     if (error) throw error
 
-    // Get country info for currency formatting
-    const { data: countryData } = await supabase
-      .from('countries')
-      .select('currency_symbol')
-      .eq('code', countryCode)
-      .single()
+    // Get currency symbol for the selected country
+    const countries = await this.getCountries()
+    const countryData = countries.find(c => c.code === countryCode)
 
     // Calculate price ranges for each product
     return (data || []).map(product => {
@@ -102,25 +102,19 @@ export class PriceComparisonAPI {
         category:categories(*),
         prices(
           *,
-          retailer:retailers(*),
-          retailer_country:retailer_countries!inner(*)
+          retailer:retailers(*)
         )
       `)
       .eq('id', productId)
-      .eq('prices.country_code', countryCode)
-      .eq('prices.retailer_country.country_code', countryCode)
-      .eq('prices.retailer_country.is_active', true)
       .single()
 
     if (error) throw error
     if (!data) return null
 
-    // Get country info for currency formatting
-    const { data: countryData } = await supabase
-      .from('countries')
-      .select('currency_symbol')
-      .eq('code', countryCode)
-      .single()
+    // Get currency symbol for the selected country
+    const countries = await this.getCountries()
+    const countryData = countries.find(c => c.code === countryCode)
+    
     const prices = data.prices.filter(p => p.retailer.is_active)
     const priceValues = prices.map(p => p.price)
 
@@ -134,7 +128,7 @@ export class PriceComparisonAPI {
   }
 
   // Get price history for a product
-  static async getPriceHistory(productId: string, countryCode: string = 'US', retailerId?: string) {
+  static async getPriceHistory(productId: string, retailerId?: string) {
     let query = supabase
       .from('price_history')
       .select(`
@@ -142,7 +136,6 @@ export class PriceComparisonAPI {
         retailer:retailers(name, logo_url)
       `)
       .eq('product_id', productId)
-      .eq('country_code', countryCode)
       .order('recorded_at', { ascending: false })
 
     if (retailerId) {
@@ -164,24 +157,18 @@ export class PriceComparisonAPI {
         category:categories(*),
         prices(
           *,
-          retailer:retailers(*),
-          retailer_country:retailer_countries!inner(*)
+          retailer:retailers(*)
         )
       `)
-      .eq('prices.country_code', countryCode)
-      .eq('prices.retailer_country.country_code', countryCode)
-      .eq('prices.retailer_country.is_active', true)
       .order('created_at', { ascending: false })
       .limit(12)
 
     if (error) throw error
 
-    // Get country info for currency formatting
-    const { data: countryData } = await supabase
-      .from('countries')
-      .select('currency_symbol')
-      .eq('code', countryCode)
-      .single()
+    // Get currency symbol for the selected country
+    const countries = await this.getCountries()
+    const countryData = countries.find(c => c.code === countryCode)
+    
     return (data || []).map(product => {
       const prices = product.prices.filter(p => p.retailer.is_active)
       const priceValues = prices.map(p => p.price)
