@@ -10,3 +10,5 @@ export default function LoadingSpinner() {
     </div>
   )
 }
+
+export { LoadingSpinner }
