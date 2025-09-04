@@ -1,270 +1,195 @@
-import { supabase } from './supabase'
-import type { Database } from './database.types'
+import { useState, useEffect } from 'react'
+import { Package } from 'lucide-react'
+import { Header } from './components/Header'
+import { ProductCard } from './components/ProductCard'
+import { ProductDetail } from './components/ProductDetail'
+import { CategoryFilter } from './components/CategoryFilter'
+import { LoadingSpinner } from './components/LoadingSpinner'
+import { HotDealsSection } from './components/HotDealsSection'
+import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
+import type { Database } from './lib/database.types'
 
-type Product = Database['public']['Tables']['products']['Row']
-type Price = Database['public']['Tables']['prices']['Row']
-type Retailer = Database['public']['Tables']['retailers']['Row']
 type Category = Database['public']['Tables']['categories']['Row']
-type FeaturedDeal = Database['public']['Tables']['featured_deals']['Row']
+type Country = Database['public']['Tables']['countries']['Row']
 
-export interface ProductWithPrices extends Product {
-  category?: Category
-  prices: (Price & { retailer: Retailer })[]
-  savings_amount?: number
-  savings_percentage?: number
-  lowest_price?: number
-  highest_price?: number
-  deal_rank?: number
-}
+function App() {
+  const [products, setProducts] = useState<ProductWithPrices[]>([])
+  const [hotDeals, setHotDeals] = useState<ProductWithPrices[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState('US')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-export interface Country {
-  code: string
-  name: string
-  currency: string
-  flag: string
-}
-
-// Hardcoded countries until we add the countries table
-export const COUNTRIES: Country[] = [
-  { code: 'US', name: 'United States', currency: 'USD', flag: '🇺🇸' },
-  { code: 'GB', name: 'United Kingdom', currency: 'GBP', flag: '🇬🇧' },
-  { code: 'DE', name: 'Germany', currency: 'EUR', flag: '🇩🇪' },
-  { code: 'FR', name: 'France', currency: 'EUR', flag: '🇫🇷' },
-  { code: 'CA', name: 'Canada', currency: 'CAD', flag: '🇨🇦' },
-  { code: 'AU', name: 'Australia', currency: 'AUD', flag: '🇦🇺' },
-  { code: 'JP', name: 'Japan', currency: 'JPY', flag: '🇯🇵' },
-  { code: 'CN', name: 'China', currency: 'CNY', flag: '🇨🇳' },
-]
-
-export class PriceComparisonAPI {
-  static async getCategories(): Promise<Category[]> {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name')
-
-    if (error) throw error
-    return data || []
-  }
-
-  static async getCountries(): Promise<Country[]> {
-    // Return hardcoded countries for now
-    return COUNTRIES
-  }
-
-  static async getBestDeals(countryCode: string = 'US', limit: number = 10): Promise<ProductWithPrices[]> {
-    // First try to get featured deals
-    const { data: featuredDeals, error: featuredError } = await supabase
-      .from('featured_deals')
-      .select(`
-        *,
-        product:products(
-          *,
-          category:categories(*),
-          prices(
-            *,
-            retailer:retailers(*)
-          )
-        )
-      `)
-      .gt('expires_at', new Date().toISOString())
-      .order('deal_rank')
-      .limit(limit)
-
-    if (!featuredError && featuredDeals && featuredDeals.length > 0) {
-      // Transform featured deals data
-      return featuredDeals.map(deal => ({
-        ...deal.product,
-        category: deal.product.category,
-        prices: deal.product.prices || [],
-        savings_amount: deal.savings_amount,
-        savings_percentage: deal.savings_percentage,
-        lowest_price: deal.lowest_price,
-        highest_price: deal.highest_price,
-        deal_rank: deal.deal_rank
-      })).filter(product => product.prices && product.prices.length > 0)
-    }
-
-    // Fallback to calculating best deals on the fly
-    return this.calculateBestDeals(countryCode, limit)
-  }
-
-  static async calculateBestDeals(countryCode: string = 'US', limit: number = 10): Promise<ProductWithPrices[]> {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        prices(
-          *,
-          retailer:retailers(*)
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(100) // Get more products to find the best deals
-
-    if (error) throw error
-
-    // Calculate savings and filter for significant deals
-    const productsWithSavings = (data || [])
-      .map(product => {
-        const prices = product.prices || []
-        if (prices.length < 2) return null // Need at least 2 prices to compare
-
-        const priceValues = prices.map(p => Number(p.price))
-        const lowestPrice = Math.min(...priceValues)
-        const highestPrice = Math.max(...priceValues)
-        const savings = highestPrice - lowestPrice
-        const savingsPercentage = savings > 0 ? (savings / highestPrice) * 100 : 0
-
-        return {
-          ...product,
-          prices,
-          savings_amount: savings,
-          savings_percentage: savingsPercentage,
-          lowest_price: lowestPrice,
-          highest_price: highestPrice
-        }
-      })
-      .filter(product => 
-        product && 
-        product.savings_percentage >= 10 && // At least 10% savings
-        product.prices.length >= 2 // Multiple retailers
-      )
-      .sort((a, b) => {
-        // Sort by savings percentage first, then by savings amount
-        if (b!.savings_percentage !== a!.savings_percentage) {
-          return b!.savings_percentage - a!.savings_percentage
-        }
-        return b!.savings_amount - a!.savings_amount
-      })
-      .slice(0, limit)
-
-    return productsWithSavings as ProductWithPrices[]
-  }
-
-  static async getFeaturedProducts(countryCode: string = 'US', limit: number = 12): Promise<ProductWithPrices[]> {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        prices(
-          *,
-          retailer:retailers(*)
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (error) throw error
-
-    // Calculate savings for each product
-    return (data || []).map(product => {
-      const prices = product.prices || []
-      if (prices.length === 0) return { ...product, prices: [] }
-
-      const priceValues = prices.map(p => Number(p.price))
-      const lowestPrice = Math.min(...priceValues)
-      const highestPrice = Math.max(...priceValues)
-      const savings = highestPrice - lowestPrice
-      const savingsPercentage = savings > 0 ? (savings / highestPrice) * 100 : 0
-
-      return {
-        ...product,
-        prices,
-        savings_amount: savings,
-        savings_percentage: savingsPercentage,
-        lowest_price: lowestPrice,
-        highest_price: highestPrice
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true)
+        const [categoriesData, countriesData, productsData] = await Promise.all([
+          PriceComparisonAPI.getCategories(),
+          PriceComparisonAPI.getCountries(),
+          PriceComparisonAPI.getFeaturedProducts('US')
+        ])
+        setCategories(categoriesData)
+        setCountries(countriesData)
+        setProducts(productsData)
+        
+        // Set default country based on user's location (you could use IP geolocation)
+        // For now, defaulting to US
+        setSelectedCountry('US')
+      } catch (err) {
+        setError('Failed to load data. Please try again.')
+        console.error('Error loading initial data:', err)
+      } finally {
+        setLoading(false)
       }
-    }).filter(product => product.prices.length > 0)
-  }
-
-  static async searchProducts(
-    query: string, 
-    countryCode: string = 'US', 
-    categoryId?: string
-  ): Promise<ProductWithPrices[]> {
-    let queryBuilder = supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        prices(
-          *,
-          retailer:retailers(*)
-        )
-      `)
-
-    if (query) {
-      queryBuilder = queryBuilder.or(`name.ilike.%${query}%,brand.ilike.%${query}%,description.ilike.%${query}%`)
     }
 
-    if (categoryId) {
-      queryBuilder = queryBuilder.eq('category_id', categoryId)
-    }
+    loadInitialData()
+  }, [])
 
-    const { data, error } = await queryBuilder
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    if (error) throw error
-
-    // Calculate savings for each product
-    return (data || []).map(product => {
-      const prices = product.prices || []
-      if (prices.length === 0) return { ...product, prices: [] }
-
-      const priceValues = prices.map(p => Number(p.price))
-      const lowestPrice = Math.min(...priceValues)
-      const highestPrice = Math.max(...priceValues)
-      const savings = highestPrice - lowestPrice
-      const savingsPercentage = savings > 0 ? (savings / highestPrice) * 100 : 0
-
-      return {
-        ...product,
-        prices,
-        savings_amount: savings,
-        savings_percentage: savingsPercentage,
-        lowest_price: lowestPrice,
-        highest_price: highestPrice
-      }
-    }).filter(product => product.prices.length > 0)
-  }
-
-  static async getProductById(id: string): Promise<ProductWithPrices | null> {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        category:categories(*),
-        prices(
-          *,
-          retailer:retailers(*)
-        )
-      `)
-      .eq('id', id)
-      .single()
-
-    if (error) throw error
-
-    if (!data) return null
-
-    const prices = data.prices || []
-    const priceValues = prices.map(p => Number(p.price))
-    const lowestPrice = Math.min(...priceValues)
-    const highestPrice = Math.max(...priceValues)
-    const savings = highestPrice - lowestPrice
-    const savingsPercentage = savings > 0 ? (savings / highestPrice) * 100 : 0
-
-    return {
-      ...data,
-      prices,
-      savings_amount: savings,
-      savings_percentage: savingsPercentage,
-      lowest_price: lowestPrice,
-      highest_price: highestPrice
+  // Handle country change
+  const handleCountryChange = async (countryCode: string) => {
+    try {
+      setLoading(true)
+      setSelectedCountry(countryCode)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, countryCode, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to load prices for selected country. Please try again.')
+      console.error('Country change error:', err)
+    } finally {
+      setLoading(false)
     }
   }
+
+  // Handle search
+  const handleSearch = async (query: string) => {
+    try {
+      setLoading(true)
+      setSearchQuery(query)
+      const results = await PriceComparisonAPI.searchProducts(query, selectedCountry, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Search failed. Please try again.')
+      console.error('Search error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle category filter
+  const handleCategoryChange = async (categoryId: string | null) => {
+    try {
+      setLoading(true)
+      setSelectedCategory(categoryId)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, selectedCountry, categoryId || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to filter by category. Please try again.')
+      console.error('Category filter error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
+      <Header 
+        onSearch={handleSearch} 
+        searchQuery={searchQuery}
+        countries={countries}
+        selectedCountry={selectedCountry}
+        onCountryChange={handleCountryChange}
+      />
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
+        <div className="text-center mb-16">
+          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent mb-6 text-shadow">
+            Find Better Prices, Instantly
+          </h1>
+          <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
+            🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
+          </p>
+        </div>
+
+        {error && (
+          <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <CategoryFilter
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onCategoryChange={handleCategoryChange}
+            />
+          </div>
+
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            {loading ? (
+              <LoadingSpinner />
+            ) : (
+              <>
+                {/* Results Header */}
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-3xl font-semibold text-gray-100">
+                    {searchQuery ? `Search Results for "${searchQuery}"` : '🔥 Today\'s Hottest Deals'}
+                  </h2>
+                  <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
+                    {products.length} product{products.length !== 1 ? 's' : ''} found
+                  </span>
+                </div>
+
+                {/* Products Grid */}
+                {products.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    {products.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onClick={setSelectedProduct}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <div className="text-gray-500 mb-6">
+                      <Package className="w-20 h-20 mx-auto animate-pulse-slow" />
+                    </div>
+                    <h3 className="text-2xl font-medium text-gray-300 mb-3">No products found</h3>
+                    <p className="text-gray-400 text-lg">
+                      {searchQuery 
+                        ? 'Try adjusting your search terms or browse different categories'
+                        : 'No products available at the moment'
+                      }
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Product Detail Modal */}
+      {selectedProduct && (
+        <ProductDetail
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
+    </div>
+  )
 }
+
+export default App
