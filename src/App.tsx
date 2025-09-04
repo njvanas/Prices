@@ -96,7 +96,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
       <Header 
         onSearch={handleSearch} 
         searchQuery={searchQuery}
@@ -107,17 +107,17 @@ function App() {
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Find the Best Prices Online
+        <div className="text-center mb-16">
+          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-400 via-primary-500 to-primary-600 bg-clip-text text-transparent mb-6 text-shadow">
+            Find Better Prices, Instantly
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Compare prices across multiple retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money on your favorite products
+          <p className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
+            🚀 Compare prices across top retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money effortlessly
           </p>
         </div>
 
         {error && (
-          <div className="bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded-lg mb-6">
+          <div className="bg-error-500/10 border border-error-500/30 text-error-300 px-6 py-4 rounded-xl mb-8 animate-slide-up">
             {error}
           </div>
         )}
@@ -139,18 +139,18 @@ function App() {
             ) : (
               <>
                 {/* Results Header */}
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-semibold text-gray-900">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-3xl font-semibold text-gray-100">
                     {searchQuery ? `Search Results for "${searchQuery}"` : 'Featured Products'}
                   </h2>
-                  <span className="text-gray-500">
+                  <span className="text-gray-400 bg-dark-700/50 px-4 py-2 rounded-xl">
                     {products.length} product{products.length !== 1 ? 's' : ''} found
                   </span>
                 </div>
 
                 {/* Products Grid */}
                 {products.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                     {products.map((product) => (
                       <ProductCard
                         key={product.id}
@@ -160,12 +160,12 @@ function App() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <div className="text-gray-400 mb-4">
-                      <Package className="w-16 h-16 mx-auto" />
+                  <div className="text-center py-20">
+                    <div className="text-gray-500 mb-6">
+                      <Package className="w-20 h-20 mx-auto animate-pulse-slow" />
                     </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-                    <p className="text-gray-500">
+                    <h3 className="text-2xl font-medium text-gray-300 mb-3">No products found</h3>
+                    <p className="text-gray-400 text-lg">
                       {searchQuery 
                         ? 'Try adjusting your search terms or browse different categories'
                         : 'No products available at the moment'

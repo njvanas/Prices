@@ -10,27 +10,27 @@ interface CategoryFilterProps {
 
 export function CategoryFilter({ categories, selectedCategory, onCategoryChange }: CategoryFilterProps) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <h3 className="font-semibold text-gray-900 mb-3">Categories</h3>
-      <div className="space-y-2">
+    <div className="glass-card rounded-2xl p-6 shadow-lg">
+      <h3 className="font-semibold text-gray-100 mb-4 text-lg">🏷️ Categories</h3>
+      <div className="space-y-3">
         <button
           onClick={() => onCategoryChange(null)}
-          className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+          className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 font-medium ${
             selectedCategory === null
-              ? 'bg-primary-100 text-primary-700 font-medium'
-              : 'text-gray-700 hover:bg-gray-50'
+              ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
+              : 'text-gray-300 hover:bg-dark-700 hover:text-gray-100'
           }`}
         >
-          All Categories
+          🌟 All Categories
         </button>
         {categories.map((category) => (
           <button
             key={category.id}
             onClick={() => onCategoryChange(category.id)}
-            className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+            className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 font-medium ${
               selectedCategory === category.id
-                ? 'bg-primary-100 text-primary-700 font-medium'
-                : 'text-gray-700 hover:bg-gray-50'
+                ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
+                : 'text-gray-300 hover:bg-dark-700 hover:text-gray-100'
             }`}
           >
             {category.name}
