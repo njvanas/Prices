@@ -191,8 +191,10 @@ function App() {
         />
       )}
     </div>
-  },
+  )
+}
 
+const API = {
   async triggerDataUpdate() {
     try {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/master-daily-scheduler`, {
@@ -224,7 +226,7 @@ function App() {
 
     if (error) throw error
     return data || []
-  )
+  }
 }
 
 export default App
