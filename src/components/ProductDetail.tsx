@@ -1,5 +1,6 @@
 import React from 'react'
-import { X, ExternalLink, Clock, Package } from 'lucide-react'
+import { X, ExternalLink, Clock, Package, Bell } from 'lucide-react'
+import { PriceAlert } from './PriceAlert'
 import type { ProductWithPrices } from '../lib/api'
 
 interface ProductDetailProps {
@@ -8,11 +9,18 @@ interface ProductDetailProps {
 }
 
 export function ProductDetail({ product, onClose }: ProductDetailProps) {
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(price)
+  const [showPriceAlert, setShowPriceAlert] = React.useState(false)
+
+  const formatPrice = (price: number, currency: string = 'USD') => {
+    // For major currencies, use proper formatting
+    if (['USD', 'EUR', 'GBP', 'CAD', 'AUD'].includes(currency)) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency
+      }).format(price)
+    }
+    // For other currencies, use symbol + formatted number
+    return `${product.currency_symbol || '$'}${price.toLocaleString()}`
   }
 
   const formatDate = (dateString: string) => {
@@ -45,18 +53,35 @@ export function ProductDetail({ product, onClose }: ProductDetailProps) {
   // Sort prices by lowest first
   const sortedPrices = [...product.prices].sort((a, b) => a.price - b.price)
 
+  const handleSetPriceAlert = (targetPrice: number, email: string) => {
+    // TODO: Implement price alert functionality
+    console.log('Setting price alert:', { targetPrice, email, productId: product.id })
+    // This would typically save to a price_alerts table and set up monitoring
+  }
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">{product.name}</h2>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {product.lowest_price && (
+              <button
+                onClick={() => setShowPriceAlert(true)}
+                className="flex items-center space-x-2 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+              >
+                <Bell className="w-4 h-4" />
+                <span>Price Alert</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6">
@@ -125,10 +150,10 @@ export function ProductDetail({ product, onClose }: ProductDetailProps) {
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Price Comparison</h3>
                 {product.lowest_price && product.highest_price && (
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
-                    <span>Lowest: <span className="font-semibold text-success-600">{formatPrice(product.lowest_price)}</span></span>
-                    <span>Highest: <span className="font-semibold text-error-600">{formatPrice(product.highest_price)}</span></span>
+                    <span>Lowest: <span className="font-semibold text-success-600">{formatPrice(product.lowest_price, sortedPrices[0]?.currency)}</span></span>
+                    <span>Highest: <span className="font-semibold text-error-600">{formatPrice(product.highest_price, sortedPrices[sortedPrices.length - 1]?.currency)}</span></span>
                     {product.lowest_price !== product.highest_price && (
-                      <span>Save: <span className="font-semibold text-primary-600">{formatPrice(product.highest_price - product.lowest_price)}</span></span>
+                      <span>Save: <span className="font-semibold text-primary-600">{formatPrice(product.highest_price - product.lowest_price, sortedPrices[0]?.currency)}</span></span>
                     )}
                   </div>
                 )}
@@ -164,7 +189,7 @@ export function ProductDetail({ product, onClose }: ProductDetailProps) {
                           <div className="flex items-center space-x-3">
                             <div>
                               <p className="text-xl font-bold text-gray-900">
-                                {formatPrice(price.price)}
+                                {formatPrice(price.price, price.currency)}
                               </p>
                               <div className="flex items-center space-x-1">
                                 <Package className="w-3 h-3" />
@@ -204,6 +229,16 @@ export function ProductDetail({ product, onClose }: ProductDetailProps) {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+
+      {/* Price Alert Modal */}
+      {showPriceAlert && (
+        <PriceAlert
+          product={product}
+          onClose={() => setShowPriceAlert(false)}
+          onSetAlert={handleSetPriceAlert}
+        />
+      )}
+    </>
   )
 }

@@ -1,12 +1,19 @@
 import React, { useState } from 'react'
 import { Search, Menu, X } from 'lucide-react'
+import { CountrySelector } from './CountrySelector'
+import type { Database } from '../lib/database.types'
+
+type Country = Database['public']['Tables']['countries']['Row']
 
 interface HeaderProps {
   onSearch: (query: string) => void
   searchQuery: string
+  countries: Country[]
+  selectedCountry: string
+  onCountryChange: (countryCode: string) => void
 }
 
-export function Header({ onSearch, searchQuery }: HeaderProps) {
+export function Header({ onSearch, searchQuery, countries, selectedCountry, onCountryChange }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -50,6 +57,11 @@ export function Header({ onSearch, searchQuery }: HeaderProps) {
 
           {/* Navigation - Desktop */}
           <nav className="hidden md:flex items-center space-x-8">
+            <CountrySelector
+              countries={countries}
+              selectedCountry={selectedCountry}
+              onCountryChange={onCountryChange}
+            />
             <a href="#" className="text-gray-700 hover:text-primary-600 transition-colors">
               Categories
             </a>
@@ -91,6 +103,13 @@ export function Header({ onSearch, searchQuery }: HeaderProps) {
               </div>
             </form>
             <nav className="space-y-2">
+              <div className="py-2">
+                <CountrySelector
+                  countries={countries}
+                  selectedCountry={selectedCountry}
+                  onCountryChange={onCountryChange}
+                />
+              </div>
               <a href="#" className="block py-2 text-gray-700 hover:text-primary-600 transition-colors">
                 Categories
               </a>

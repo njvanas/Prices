@@ -8,11 +8,8 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, onClick }: ProductCardProps) {
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(price)
+  const formatPrice = (price: number, currencySymbol: string = '$') => {
+    return `${currencySymbol}${price.toLocaleString()}`
   }
 
   const priceRange = product.lowest_price && product.highest_price && product.lowest_price !== product.highest_price
@@ -59,11 +56,11 @@ export function ProductCard({ product, onClick }: ProductCardProps) {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="text-2xl font-bold text-gray-900">
-                    {formatPrice(product.lowest_price)}
+                    {formatPrice(product.lowest_price, product.currency_symbol)}
                   </span>
                   {priceRange && (
                     <span className="text-sm text-gray-500">
-                      up to {formatPrice(product.highest_price!)}
+                      up to {formatPrice(product.highest_price!, product.currency_symbol)}
                     </span>
                   )}
                 </div>
@@ -71,7 +68,7 @@ export function ProductCard({ product, onClick }: ProductCardProps) {
                 {savings > 0 && (
                   <div className="flex items-center text-success-600 text-sm">
                     <TrendingDown className="w-4 h-4 mr-1" />
-                    Save up to {formatPrice(savings)}
+                    Save up to {formatPrice(savings, product.currency_symbol)}
                   </div>
                 )}
                 

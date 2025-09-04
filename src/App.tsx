@@ -8,12 +8,15 @@ import { PriceComparisonAPI, type ProductWithPrices } from './lib/api'
 import type { Database } from './lib/database.types'
 
 type Category = Database['public']['Tables']['categories']['Row']
+type Country = Database['public']['Tables']['countries']['Row']
 
 function App() {
   const [products, setProducts] = useState<ProductWithPrices[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
   const [selectedProduct, setSelectedProduct] = useState<ProductWithPrices | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState('US')
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -23,12 +26,18 @@ function App() {
     const loadInitialData = async () => {
       try {
         setLoading(true)
-        const [categoriesData, productsData] = await Promise.all([
+        const [categoriesData, countriesData, productsData] = await Promise.all([
           PriceComparisonAPI.getCategories(),
-          PriceComparisonAPI.getFeaturedProducts()
+          PriceComparisonAPI.getCountries(),
+          PriceComparisonAPI.getFeaturedProducts('US')
         ])
         setCategories(categoriesData)
+        setCountries(countriesData)
         setProducts(productsData)
+        
+        // Set default country based on user's location (you could use IP geolocation)
+        // For now, defaulting to US
+        setSelectedCountry('US')
       } catch (err) {
         setError('Failed to load data. Please try again.')
         console.error('Error loading initial data:', err)
@@ -40,12 +49,27 @@ function App() {
     loadInitialData()
   }, [])
 
+  // Handle country change
+  const handleCountryChange = async (countryCode: string) => {
+    try {
+      setLoading(true)
+      setSelectedCountry(countryCode)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, countryCode, selectedCategory || undefined)
+      setProducts(results)
+    } catch (err) {
+      setError('Failed to load prices for selected country. Please try again.')
+      console.error('Country change error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Handle search
   const handleSearch = async (query: string) => {
     try {
       setLoading(true)
       setSearchQuery(query)
-      const results = await PriceComparisonAPI.searchProducts(query, selectedCategory || undefined)
+      const results = await PriceComparisonAPI.searchProducts(query, selectedCountry, selectedCategory || undefined)
       setProducts(results)
     } catch (err) {
       setError('Search failed. Please try again.')
@@ -60,7 +84,7 @@ function App() {
     try {
       setLoading(true)
       setSelectedCategory(categoryId)
-      const results = await PriceComparisonAPI.searchProducts(searchQuery, categoryId || undefined)
+      const results = await PriceComparisonAPI.searchProducts(searchQuery, selectedCountry, categoryId || undefined)
       setProducts(results)
     } catch (err) {
       setError('Failed to filter by category. Please try again.')
@@ -72,7 +96,13 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header onSearch={handleSearch} searchQuery={searchQuery} />
+      <Header 
+        onSearch={handleSearch} 
+        searchQuery={searchQuery}
+        countries={countries}
+        selectedCountry={selectedCountry}
+        onCountryChange={handleCountryChange}
+      />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Hero Section */}
@@ -80,8 +110,8 @@ function App() {
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Find the Best Prices Online
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Compare prices across multiple retailers and save money on your favorite products
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Compare prices across multiple retailers in {countries.find(c => c.code === selectedCountry)?.name || 'your country'} and save money on your favorite products
           </p>
         </div>
 
